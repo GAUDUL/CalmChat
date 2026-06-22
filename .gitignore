@@ -1,0 +1,113 @@
+# =========================================================
+# OS / IDE
+# =========================================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.iml
+
+# =========================================================
+# ENV (중앙 관리)
+# =========================================================
+.env
+.env.*
+!.env.example
+
+# =========================================================
+# LOGS
+# =========================================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================================================
+# PYTHON (FastAPI backend)
+# =========================================================
+backend/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/**/*.pyd
+
+backend/.venv/
+backend/venv/
+backend/env/
+backend/ENV/
+
+# Testing / tooling cache
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+
+# Python packaging
+backend/*.egg-info/
+backend/dist/
+backend/build/
+
+# =========================================================
+# DATABASE / VECTOR DB (Chroma / SQLite 등)
+# =========================================================
+backend/data/chroma/
+backend/data/chroma_db/
+backend/persist/
+backend/vectorstore/
+
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+
+# =========================================================
+# NODE / FRONTEND (React Native)
+# =========================================================
+frontend/node_modules/
+frontend/.cache/
+frontend/.turbo/
+
+# Expo (사용 시)
+frontend/.expo/
+frontend/.expo-shared/
+
+# Metro bundler
+frontend/.metro-cache/
+
+# Watchman
+frontend/.watchmanconfig
+
+# =========================================================
+# ANDROID (React Native)
+# =========================================================
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/build/
+frontend/android/.cxx/
+frontend/android/.externalNativeBuild/
+frontend/android/local.properties
+frontend/android/.idea/
+
+# =========================================================
+# IOS (React Native)
+# =========================================================
+frontend/ios/Pods/
+frontend/ios/build/
+frontend/ios/DerivedData/
+
+# Xcode user/state files (중요)
+frontend/ios/*.xcuserstate
+frontend/ios/*.mode1v3
+frontend/ios/*.pbxuser
+frontend/ios/*.xcworkspace
+
+# =========================================================
+# OPTIONAL BUILD OUTPUT
+# =========================================================
+dist/
+build/
+out/
+
+# =========================================================
+# DEBUG / TEMP FILES
+# =========================================================
+*.tmp
+*.swp
