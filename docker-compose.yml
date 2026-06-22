@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  # --------------------
+  # Backend (FastAPI)
+  # --------------------
+  backend:
+    build: ./backend
+    container_name: calm-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app   # 개발용 (hot reload 대신 코드 반영)
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - mysql
+    restart: unless-stopped
+
+  # --------------------
+  # MySQL DB
+  # --------------------
+  mysql:
+    image: mysql:8.0
+    container_name: calm-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: calm_chat
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+  # --------------------
+  # ChromaDB (RAG)
+  # --------------------
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: calm-chroma
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  chroma_data:
