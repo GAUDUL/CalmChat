@@ -3,8 +3,9 @@ import os
 import shutil
 import tempfile
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile, BackgroundTasks   
 from sqlalchemy.orm import Session
+
 
 from app.database import get_db
 from app.models.db_models import Conversation, FamilyVoice
@@ -14,6 +15,7 @@ from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
 from app.services.stt_service import stt_service
 from app.services.tts_service import tts_service
+from app.services.emotion.worker import run_emotion_pipeline
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -55,8 +57,16 @@ def synthesize_response_audio(user_id: int, text: str, db: Session) -> bytes:
 # 사용자 텍스트 입력을 받아 AI 응답 반환
 # 테스트용
 @router.post("", response_model=ChatResponse)
-async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
+async def chat(payload: ChatRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+
     response_text, context = generate_chat_response(payload.user_id, payload.text, db)
+
+    background_tasks.add_task(
+        run_emotion_pipeline,
+        payload.user_id,
+        payload.text
+    )
+
     return ChatResponse(response_text=response_text, used_context=context)
 
 
@@ -64,6 +74,7 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)):
 # 음성 업로드 → STT → AI 응답 생성 → TTS → 결과 반환
 @router.post("/audio", response_model=VoiceChatResponse)
 async def voice_chat(
+    background_tasks: BackgroundTasks,
     user_id: int = Form(...),
     audio: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -80,6 +91,13 @@ async def voice_chat(
         text = stt_result.get("text", "")
         # LLM
         response_text, context = generate_chat_response(user_id, text, db)
+
+        background_tasks.add_task(
+            run_emotion_pipeline,
+            user_id,
+            text
+        )
+        
         # TTS
         audio_bytes = synthesize_response_audio(user_id, response_text, db)
 
