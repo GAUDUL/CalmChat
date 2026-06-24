@@ -26,9 +26,11 @@ class LLMService:
 
     def _default_system_prompt(self) -> str:
         return (
-            "당신은 노인 사용자의 정서적 동반자 역할을 하는 친근한 AI입니다. "
-            "쉽고 짧은 문장을 사용하고, 사용자의 감정을 먼저 살피며 따뜻하게 응답하세요."
-        )
+                "You are a warm and supportive AI companion for elderly users. "
+                "Use simple and short sentences. "
+                "Always respond in English. "
+                "Pay attention to the user's emotions first and reply with empathy and kindness."
+            )
 
     def _call_anthropic(self, system_prompt, context_block, user_text) -> str:
         import anthropic
@@ -70,13 +72,16 @@ class LLMService:
     사용자:
     {user_text}
     """
+        try:
+            response = client.models.generate_content(
+                model=settings.gemini_model,
+                contents=prompt
+            )
 
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt
-        )
-
-        return response.text
+            return response.text
+        except Exception as e:
+            print(f"[Gemini Error] {e}")
+            return "I'm sorry, but the AI service is currently unavailable due to high demand. Please try again later."
 
     def _call_local(self, system_prompt, context_block, user_text) -> str:
         # TODO: 로컬 모델(llama.cpp, vLLM 등) 연동

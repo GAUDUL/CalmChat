@@ -42,8 +42,9 @@ export async function sendChatMessage(userId, text) {
 export async function sendVoiceChat(userId, audioUri) {
   const formData = new FormData();
   formData.append("user_id", String(userId));
+  // android 용 file url
   formData.append("audio", {
-    uri: audioUri,
+    uri: `file://${audioUri}`, // 변경
     name: "recording.wav",
     type: "audio/wav",
   });
@@ -52,7 +53,7 @@ export async function sendVoiceChat(userId, audioUri) {
     headers: { "Content-Type": "multipart/form-data" },
     timeout: 60000,
   });
-  return data; // { text, confidence, response_text, used_context }
+  return data; // { text, confidence, response_text, used_context, audio_base64 }
 }
 
 export async function fetchTTSAudio(userId, text, useFamilyVoice = false) {

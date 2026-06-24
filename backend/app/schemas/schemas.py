@@ -21,6 +21,8 @@ class ChatResponse(BaseModel):
 class VoiceChatResponse(ChatResponse):
     text: str
     confidence: Optional[float] = None
+    audio_base64: Optional[str] = None
+    audio_content_type: str = "audio/wav"
 
 
 class DeviceUserRequest(BaseModel):
