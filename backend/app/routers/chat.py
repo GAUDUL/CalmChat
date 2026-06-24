@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.db_models import Conversation
+from app.routers.users import get_user_or_404
 from app.schemas.schemas import ChatRequest, ChatResponse, VoiceChatResponse
 from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
@@ -16,6 +17,8 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
 def generate_chat_response(user_id: int, text: str, db: Session):
+    get_user_or_404(db, user_id)
+
     context = rag_service.get_relevant_context(user_id, text)
     response_text = llm_service.generate_response(text, context)
 

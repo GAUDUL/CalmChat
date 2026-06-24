@@ -10,23 +10,28 @@ import { CalmCard } from "../components/ui/CalmCard";
 import { colors } from "../theme/theme";
 import { fetchMetrics } from "../api/client";
 
-// TODO: 실제 로그인/사용자 식별 로직으로 교체
-const CURRENT_USER_ID = 1;
-
-export default function MoodScreen() {
+export default function MoodScreen({ user }) {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchMetrics(CURRENT_USER_ID)
+    if (!user?.id) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    // Mood metrics are scoped by the user row created for this device.
+    fetchMetrics(user.id)
       .then(setMetrics)
       .catch((err) => {
         console.error("Failed to load metrics:", err);
         setError("Could not load your mood data.");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.id]);
 
   return (
     <SafeAreaView style={styles.safe}>

@@ -1,10 +1,32 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, Switch, StyleSheet, SafeAreaView, ScrollView } from "react-native";
 import { CalmCard } from "../components/ui/CalmCard";
+import { updateUserPreferences } from "../api/client";
 import { colors } from "../theme/theme";
 
-export default function ProfileScreen() {
-  const [familyVoiceEnabled, setFamilyVoiceEnabled] = useState(false);
+export default function ProfileScreen({ user, onUserChange }) {
+  const [familyVoiceEnabled, setFamilyVoiceEnabled] = useState(
+    Boolean(user?.family_voice_enabled)
+  );
+
+  useEffect(() => {
+    setFamilyVoiceEnabled(Boolean(user?.family_voice_enabled));
+  }, [user?.family_voice_enabled]);
+
+  const handleFamilyVoiceChange = async (enabled) => {
+    setFamilyVoiceEnabled(enabled);
+
+    try {
+      // Persist profile preferences on the same users row used by chat and mood.
+      const updatedUser = await updateUserPreferences(user.id, {
+        family_voice_enabled: enabled,
+      });
+      onUserChange(updatedUser);
+    } catch (err) {
+      console.error("Failed to update user preferences:", err);
+      setFamilyVoiceEnabled(!enabled);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -13,7 +35,22 @@ export default function ProfileScreen() {
 
         <CalmCard style={styles.card}>
           <Text style={styles.label}>Name</Text>
-          <Text style={styles.value}>OOO</Text>
+          <Text style={styles.value}>{user?.name || "CalmChat User"}</Text>
+        </CalmCard>
+
+        <CalmCard style={styles.card}>
+          <Text style={styles.label}>Phone</Text>
+          <Text style={styles.value}>{user?.phone || "-"}</Text>
+        </CalmCard>
+
+        <CalmCard style={styles.card}>
+          <Text style={styles.label}>Region</Text>
+          <Text style={styles.value}>{user?.region_dialect || "-"}</Text>
+        </CalmCard>
+
+        <CalmCard style={styles.card}>
+          <Text style={styles.label}>User ID</Text>
+          <Text style={styles.value}>{user?.id ?? "-"}</Text>
         </CalmCard>
 
         <CalmCard style={[styles.card, styles.row]}>
@@ -25,10 +62,10 @@ export default function ProfileScreen() {
           </View>
           <Switch
             value={familyVoiceEnabled}
-            onValueChange={setFamilyVoiceEnabled}
+            onValueChange={handleFamilyVoiceChange}
+            disabled={!user?.id}
             trackColor={{ true: colors.primary, false: colors.border }}
           />
-          {/* TODO: 가족 목소리 등록/토글 API 연동 (현재 백엔드에 라우터 없음 - 필요시 추가) */}
         </CalmCard>
       </ScrollView>
     </SafeAreaView>

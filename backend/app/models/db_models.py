@@ -9,6 +9,8 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
+    # Device-based identity for the no-login flow. One app install maps to one user row.
+    device_key = Column(String(100), unique=True, index=True, nullable=True)
     phone = Column(String(20), unique=True, nullable=True)
     region_dialect = Column(String(50), nullable=True)  # 예: "경상도", "전라도" (STT 사투리 모델 선택용)
     family_voice_enabled = Column(Boolean, default=False)

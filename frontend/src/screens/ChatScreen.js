@@ -14,9 +14,7 @@ import { CalmCard } from "../components/ui/CalmCard";
 import { colors } from "../theme/theme";
 import { sendVoiceChat, fetchTTSAudio, updateProfile } from "../api/client";
 
-const CURRENT_USER_ID = 1;
-
-export default function ChatScreen() {
+export default function ChatScreen({ user }) {
   const [avatarState, setAvatarState] = useState("idle");
   const [lastResponse, setLastResponse] = useState("");
 
@@ -29,6 +27,10 @@ export default function ChatScreen() {
   };
 
   const startRecording = async () => {
+    if (!user?.id) {
+      return;
+    }
+
     try {
       await requestPermission();
 
@@ -52,12 +54,17 @@ export default function ChatScreen() {
     try {
       const filePath = await AudioRecord.stop();
 
-      const { response_text } = await sendVoiceChat(CURRENT_USER_ID, filePath);
+      // Server resolves STT + chat for the current device-backed user.
+      const { response_text } = await sendVoiceChat(user.id, filePath);
       setLastResponse(response_text);
 
       setAvatarState("speaking");
-      await fetchTTSAudio(CURRENT_USER_ID, response_text);
-      await updateProfile(CURRENT_USER_ID);
+      await fetchTTSAudio(
+        user.id,
+        response_text,
+        Boolean(user.family_voice_enabled)
+      );
+      await updateProfile(user.id);
     } catch (err) {
       console.error("Failed to process voice message:", err);
     } finally {
@@ -91,7 +98,7 @@ export default function ChatScreen() {
           title={buttonLabel}
           icon={<Text style={styles.micIcon}>🎤</Text>}
           variant={avatarState === "listening" ? "accent" : "primary"}
-          disabled={isBusy}
+          disabled={isBusy || !user?.id}
           onPress={
             avatarState === "listening"
               ? stopRecordingAndProcess

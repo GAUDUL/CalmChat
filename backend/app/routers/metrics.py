@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+
 from app.database import get_db
 from app.models.db_models import MetricRecord
+from app.routers.users import get_user_or_404
 from app.schemas.schemas import MetricsResponse
 from app.services.anomaly_service import anomaly_service
 
@@ -10,7 +12,8 @@ router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
 @router.get("/{user_id}", response_model=MetricsResponse)
 async def get_metrics(user_id: int, db: Session = Depends(get_db)):
-    """프론트: 수치 조회 -> GET /metrics -> 이상치 탐지 -> 수치 + 플래그 반환"""
+    get_user_or_404(db, user_id)
+
     latest = (
         db.query(MetricRecord)
         .filter(MetricRecord.user_id == user_id)

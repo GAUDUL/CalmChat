@@ -1,9 +1,25 @@
 import axios from "axios";
+import { Platform } from "react-native";
 
 // TODO: 실제 백엔드 주소로 교체 (예: http://192.168.0.10:8000)
-const BASE_URL = "http://localhost:8000";
+// Android emulator cannot reach the host machine through localhost.
+// Use 10.0.2.2 for Android emulator; use the PC LAN IP for a physical phone.
+const BASE_URL =
+  Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://localhost:8000";
 
 const api = axios.create({ baseURL: BASE_URL, timeout: 15000 });
+
+export async function registerDeviceUser(deviceKey) {
+  const { data } = await api.post("/users/device", {
+    device_key: deviceKey,
+  });
+  return data; // { id, name, device_key, family_voice_enabled, created_at }
+}
+
+export async function updateUserPreferences(userId, preferences) {
+  const { data } = await api.patch(`/users/${userId}`, preferences);
+  return data;
+}
 
 export async function sendAudioForSTT(audioUri) {
   const formData = new FormData();
