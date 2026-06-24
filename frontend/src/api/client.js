@@ -23,6 +23,22 @@ export async function sendChatMessage(userId, text) {
   return data; // { response_text, used_context }
 }
 
+export async function sendVoiceChat(userId, audioUri) {
+  const formData = new FormData();
+  formData.append("user_id", String(userId));
+  formData.append("audio", {
+    uri: audioUri,
+    name: "recording.wav",
+    type: "audio/wav",
+  });
+
+  const { data } = await api.post("/chat/audio", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 60000,
+  });
+  return data; // { text, confidence, response_text, used_context }
+}
+
 export async function fetchTTSAudio(userId, text, useFamilyVoice = false) {
   const response = await api.post(
     "/tts",

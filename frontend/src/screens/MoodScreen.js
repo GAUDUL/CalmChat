@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator } from "react-native";
+import {
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { CalmCard } from "../components/ui/CalmCard";
 import { colors } from "../theme/theme";
 import { fetchMetrics } from "../api/client";
@@ -16,8 +22,8 @@ export default function MoodScreen() {
     fetchMetrics(CURRENT_USER_ID)
       .then(setMetrics)
       .catch((err) => {
-        console.error("지표 조회 실패:", err);
-        setError("지표를 불러오지 못했어요.");
+        console.error("Failed to load metrics:", err);
+        setError("Could not load your mood data.");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -25,7 +31,7 @@ export default function MoodScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>오늘의 기분</Text>
+        <Text style={styles.title}>Today's Mood</Text>
 
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} />
@@ -36,18 +42,18 @@ export default function MoodScreen() {
         ) : (
           <>
             <CalmCard style={styles.card}>
-              <Text style={styles.label}>정서 점수</Text>
+              <Text style={styles.label}>Emotion score</Text>
               <Text style={styles.value}>{metrics?.emotion_score ?? "-"}</Text>
             </CalmCard>
 
             <CalmCard style={styles.card}>
-              <Text style={styles.label}>활력 점수</Text>
+              <Text style={styles.label}>Energy score</Text>
               <Text style={styles.value}>{metrics?.energy_score ?? "-"}</Text>
             </CalmCard>
 
             {metrics?.anomaly_detected && (
               <CalmCard warm style={styles.card}>
-                <Text style={styles.alertLabel}>변화가 감지되었어요</Text>
+                <Text style={styles.alertLabel}>A change was detected</Text>
                 <Text style={styles.label}>{metrics.recommended_solution}</Text>
               </CalmCard>
             )}
@@ -60,10 +66,31 @@ export default function MoodScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { padding: 20, alignItems: "stretch", paddingBottom: 40, gap: 14 },
-  title: { fontSize: 22, fontWeight: "700", color: colors.foreground, marginBottom: 8, textAlign: "center" },
+  container: {
+    padding: 20,
+    alignItems: "stretch",
+    paddingBottom: 40,
+    gap: 14,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.foreground,
+    marginBottom: 8,
+    textAlign: "center",
+  },
   card: { width: "100%" },
   label: { fontSize: 15, color: colors.mutedForeground },
-  value: { fontSize: 28, fontWeight: "700", color: colors.primary, marginTop: 4 },
-  alertLabel: { fontSize: 16, fontWeight: "700", color: colors.accent, marginBottom: 4 },
+  value: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: colors.primary,
+    marginTop: 4,
+  },
+  alertLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.accent,
+    marginBottom: 4,
+  },
 });

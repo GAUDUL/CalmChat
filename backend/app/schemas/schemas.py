@@ -18,6 +18,11 @@ class ChatResponse(BaseModel):
     used_context: Optional[List[str]] = None
 
 
+class VoiceChatResponse(ChatResponse):
+    text: str
+    confidence: Optional[float] = None
+
+
 class TTSRequest(BaseModel):
     text: str
     user_id: int
