@@ -21,7 +21,7 @@ class STTService:
         return cls._model
 
     @classmethod
-    def transcribe(cls, audio_path: str, language: str = "ko") -> dict:
+    def transcribe(cls, audio_path: str, language: str | None = None) -> dict:
         model = cls.load_model()
         result = model.transcribe(audio_path, language=language)
         return {

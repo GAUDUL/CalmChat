@@ -18,6 +18,38 @@ class ChatResponse(BaseModel):
     used_context: Optional[List[str]] = None
 
 
+class VoiceChatResponse(ChatResponse):
+    text: str
+    confidence: Optional[float] = None
+    audio_base64: Optional[str] = None
+    audio_content_type: str = "audio/wav"
+
+
+class DeviceUserRequest(BaseModel):
+    device_key: str
+    name: str = "CalmChat User"
+
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    device_key: Optional[str] = None
+    phone: Optional[str] = None
+    region_dialect: Optional[str] = None
+    family_voice_enabled: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserPreferenceUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    region_dialect: Optional[str] = None
+    family_voice_enabled: Optional[bool] = None
+
+
 class TTSRequest(BaseModel):
     text: str
     user_id: int
