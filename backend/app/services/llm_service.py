@@ -25,12 +25,16 @@ class LLMService:
             return self._call_local(system_prompt, context_block, user_text)
 
     def _default_system_prompt(self) -> str:
+        # 한국어/사투리 입력 허용, 영어 응답 고정.
         return (
-                "You are a warm and supportive AI companion for elderly users. "
-                "Use simple and short sentences. "
-                "Always respond in English. "
-                "Pay attention to the user's emotions first and reply with empathy and kindness."
-            )
+            "You are a friendly AI companion who offers emotional support to elderly users. "
+            "The user may speak Korean or a Korean dialect, but you must always respond in English. "
+            "Use simple, short, gentle sentences that are easy to understand. "
+            "Before giving advice, notice the user's feelings and acknowledge them warmly. "
+            "Sound like a caring companion, not a formal assistant. "
+            "If the user seems lonely, worried, tired, or sad, respond with empathy first. "
+            "Ask at most one small follow-up question when it would help the user keep talking."
+        )
 
     def _call_anthropic(self, system_prompt, context_block, user_text) -> str:
         import anthropic

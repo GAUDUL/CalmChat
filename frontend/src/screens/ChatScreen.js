@@ -14,7 +14,7 @@ import { CalmCard } from "../components/ui/CalmCard";
 import { colors } from "../theme/theme";
 import { sendVoiceChat, fetchTTSAudio, updateProfile } from "../api/client";
 
-export default function ChatScreen({ user }) {
+export default function ChatScreen({ user, onRefreshMetrics }) {
   const [avatarState, setAvatarState] = useState("idle");
   const [lastResponse, setLastResponse] = useState("");
 
@@ -57,6 +57,7 @@ export default function ChatScreen({ user }) {
       // Server resolves STT + chat for the current device-backed user.
       const { response_text } = await sendVoiceChat(user.id, filePath);
       setLastResponse(response_text);
+      await onRefreshMetrics?.({ retries: 3, delayMs: 500 });
 
       setAvatarState("speaking");
       await fetchTTSAudio(

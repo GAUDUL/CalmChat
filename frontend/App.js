@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   View,
@@ -13,7 +13,7 @@ import ChatScreen from "./src/screens/ChatScreen";
 import MoodScreen from "./src/screens/MoodScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
-import { registerDeviceUser } from "./src/api/client";
+import { fetchMetrics, registerDeviceUser } from "./src/api/client";
 import { getOrCreateDeviceKey } from "./src/storage/deviceUser";
 
 const TABS = [
@@ -28,6 +28,44 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [userError, setUserError] = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState(null);
+
+  const refreshMetrics = useCallback(
+    async ({ retries = 0, delayMs = 500 } = {}) => {
+      if (!user?.id) {
+        return null;
+      }
+
+      setMetricsLoading(true);
+      setMetricsError(null);
+
+      let lastError = null;
+
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+
+        try {
+          // Mood 화면 공유 점수 갱신.
+          const nextMetrics = await fetchMetrics(user.id);
+          setMetrics(nextMetrics);
+          setMetricsLoading(false);
+          return nextMetrics;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      console.error("Failed to load metrics:", lastError);
+      setMetricsError("Could not load your mood data.");
+      setMetricsLoading(false);
+      return null;
+    },
+    [user?.id]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -57,6 +95,10 @@ export default function App() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    refreshMetrics();
+  }, [refreshMetrics]);
 
   const ActiveScreen =
     TABS.find((tab) => tab.key === activeTab)?.Component || HomeScreen;
@@ -106,6 +148,10 @@ export default function App() {
           onNavigate={setActiveTab}
           user={user}
           onUserChange={setUser}
+          metrics={metrics}
+          metricsLoading={metricsLoading}
+          metricsError={metricsError}
+          onRefreshMetrics={refreshMetrics}
         />
       </View>
 

@@ -25,6 +25,16 @@ class VoiceChatResponse(ChatResponse):
     audio_content_type: str = "audio/wav"
 
 
+class ConversationResponse(BaseModel):
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class DeviceUserRequest(BaseModel):
     device_key: str
     name: str = "CalmChat User"

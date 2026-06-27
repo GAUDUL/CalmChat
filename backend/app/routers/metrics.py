@@ -9,6 +9,9 @@ from app.services.anomaly_service import anomaly_service
 
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
+DEFAULT_EMOTION_SCORE = 50
+DEFAULT_ENERGY_SCORE = 50
+
 
 @router.get("/{user_id}", response_model=MetricsResponse)
 async def get_metrics(user_id: int, db: Session = Depends(get_db)):
@@ -24,8 +27,9 @@ async def get_metrics(user_id: int, db: Session = Depends(get_db)):
 
     return MetricsResponse(
         user_id=user_id,
-        emotion_score=latest.emotion_score if latest else None,
-        energy_score=latest.energy_score if latest else None,
+        # 대화 전 Mood 기본값.
+        emotion_score=latest.emotion_score if latest else DEFAULT_EMOTION_SCORE,
+        energy_score=latest.energy_score if latest else DEFAULT_ENERGY_SCORE,
         anomaly_detected=anomaly_result["anomaly_detected"],
         recommended_solution=anomaly_result["recommended_solution"],
     )

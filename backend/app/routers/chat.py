@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.db_models import Conversation, FamilyVoice
 from app.routers.users import get_user_or_404
-from app.schemas.schemas import ChatRequest, ChatResponse, VoiceChatResponse
+from app.schemas.schemas import ChatRequest, ChatResponse, ConversationResponse, VoiceChatResponse
 from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
 from app.services.stt_service import stt_service
@@ -18,6 +18,8 @@ from app.services.tts_service import tts_service
 from app.services.emotion.worker import run_emotion_pipeline
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+
+CHAT_HISTORY_LIMIT = 80
 
 # 사용자 입력을 기반으로 RAG 검색 → LLM 응답 생성 → 대화 내역 저장
 def generate_chat_response(user_id: int, text: str, db: Session):
@@ -51,6 +53,24 @@ def synthesize_response_audio(user_id: int, text: str, db: Session) -> bytes:
         use_family_voice=user.family_voice_enabled,
         voice_model_id=voice_model_id,
     )
+
+
+@router.get("/history/{user_id}", response_model=list[ConversationResponse])
+async def get_chat_history(user_id: int, limit: int = CHAT_HISTORY_LIMIT, db: Session = Depends(get_db)):
+    get_user_or_404(db, user_id)
+
+    limit = max(1, min(limit, CHAT_HISTORY_LIMIT))
+
+    records = (
+        db.query(Conversation)
+        .filter(Conversation.user_id == user_id)
+        .order_by(Conversation.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    # 화면 표시용 시간순 정렬.
+    return list(reversed(records))
 
 
 # 텍스트 채팅 API
