@@ -1,5 +1,10 @@
 import io
 import wave
+import os
+import shutil
+from app.config import settings
+from app.services.xtts_engine import XTTSEngine
+
 """
 TTS 서비스.
   - standard: 기본 합성 음성
@@ -10,6 +15,20 @@ TODO: 실제 TTS 엔진 연동 (예: ElevenLabs, Coqui TTS, Azure/Naver Clova �
 """
 
 class TTSService:
+
+    def __init__(self):
+        self.xtts = None
+
+        os.makedirs(
+        settings.voice_storage_dir,
+        exist_ok=True,
+        )
+
+    def _get_xtts(self):
+        if self.xtts is None:
+            self.xtts = XTTSEngine()
+        return self.xtts
+
     def synthesize(
         self,
         text: str,
@@ -25,13 +44,49 @@ class TTSService:
         # before a real TTS provider is wired in.
         return self._make_silent_wav()
 
-    def _synthesize_family_voice(self, text: str, voice_model_id: str) -> bytes:
-        # Family-voice cloning is a future provider integration; keep the API shape stable.
-        return self._make_silent_wav()
+    def _synthesize_family_voice(
+        self,
+        text: str,
+        voice_model_id: str,
+    ) -> bytes:
 
-    def register_family_voice(self, sample_audio_path: str) -> str:
-        # Placeholder until a voice cloning provider returns a persistent voice model id.
-        raise NotImplementedError("Family voice registration is not implemented yet")
+        speaker_path = os.path.join(
+            settings.voice_storage_dir,
+            voice_model_id,
+        )
+
+        if not os.path.exists(speaker_path):
+            return self._make_silent_wav()
+
+        return self._get_xtts().synthesize(
+            text=text,
+            speaker_wav=speaker_path,
+            language="ko",
+        )
+
+    def register_family_voice(
+        self,
+        user_id: int,              # 추가
+        sample_audio_path: str,
+    ) -> str:
+
+        ext = os.path.splitext(
+            sample_audio_path
+        )[1]
+
+        file_name = f"user_{user_id}{ext}"
+
+        save_path = os.path.join(
+            settings.voice_storage_dir,
+            file_name,
+        )
+
+        shutil.copy(
+            sample_audio_path,
+            save_path,
+        )
+
+        return file_name
 
     def _make_silent_wav(self, duration_seconds: float = 0.4, sample_rate: int = 16000) -> bytes:
         frames = int(duration_seconds * sample_rate)

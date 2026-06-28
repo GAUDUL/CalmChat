@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     git \
+    libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

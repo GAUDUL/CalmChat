@@ -41,7 +41,11 @@ class Settings(BaseSettings):
     whisper_finetuned_checkpoint: str = ""  # 사투리 파인튜닝 체크포인트 경로 (있으면 우선 사용)
 
     # TTS
-    tts_engine: str = "placeholder"  # 모델 선정 논의 필요 -> 실제 엔진명으로 교체
+    tts_engine: str = "xtts"
+
+    # XTTS
+    xtts_model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2"
+    voice_storage_dir: str = "./data/family_voices"
 
     class Config:
         env_file = ".env"

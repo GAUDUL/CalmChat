@@ -86,3 +86,8 @@ class MetricsResponse(BaseModel):
 class FamilyVoiceRegisterRequest(BaseModel):
     user_id: int
     family_member_name: str
+
+
+class FamilyVoiceEnabledRequest(BaseModel):
+    user_id: int
+    enabled: bool    

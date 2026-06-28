@@ -3,7 +3,7 @@ import os
 import shutil
 import tempfile
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, BackgroundTasks   
+from fastapi import APIRouter, Depends, File, Form, UploadFile, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
 
@@ -14,7 +14,7 @@ from app.schemas.schemas import ChatRequest, ChatResponse, ConversationResponse,
 from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
 from app.services.stt_service import stt_service
-from app.services.tts_service import tts_service
+from backend.app.services.tts_service import tts_service
 from app.services.emotion.worker import run_emotion_pipeline
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -36,8 +36,13 @@ def generate_chat_response(user_id: int, text: str, db: Session):
 
 
 # 응답 텍스트를 음성으로 변환 (가족 음성 사용 여부 포함)
-def synthesize_response_audio(user_id: int, text: str, db: Session) -> bytes:
+def synthesize_response_audio(
+    user_id: int,
+    text: str,
+    db: Session,
+) -> bytes:
     user = get_user_or_404(db, user_id)
+
     voice_model_id = None
 
     if user.family_voice_enabled:
@@ -46,7 +51,11 @@ def synthesize_response_audio(user_id: int, text: str, db: Session) -> bytes:
             .filter(FamilyVoice.user_id == user_id)
             .first()
         )
-        voice_model_id = family_voice.voice_model_id if family_voice else None
+
+        if family_voice:
+            voice_model_id = (
+                family_voice.voice_model_id
+            )
 
     return tts_service.synthesize(
         text=text,
@@ -108,7 +117,14 @@ async def voice_chat(
 
         # STT
         stt_result = stt_service.transcribe(tmp_path)
-        text = stt_result.get("text", "")
+        text = stt_result.get("text", "").strip()
+
+        if not text:
+            raise HTTPException(
+                status_code=400,
+                detail="음성을 인식하지 못했습니다."
+            )
+                
         # LLM
         response_text, context = generate_chat_response(user_id, text, db)
 
