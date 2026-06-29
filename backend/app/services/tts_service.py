@@ -7,7 +7,7 @@ import os
 import requests
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel (기본 음성)
+ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George (무료 플랜)
 ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 
 class TTSService:

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # TTS
     tts_engine: str = "placeholder"  # 모델 선정 논의 필요 -> 실제 엔진명으로 교체
+    elevenlabs_api_key: str = ""
 
     class Config:
         env_file = ".env"
