@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.db_models import Conversation, ProfileDocument
-from app.routers.users import get_user_or_404
+from app.routers.users import require_user_access
 from app.schemas.schemas import ProfileUpdateRequest, ProfileUpdateResponse
 from app.services.rag_service import rag_service
 
@@ -13,8 +13,12 @@ router = APIRouter(prefix="/profile", tags=["Profile"])
 
 
 @router.post("/update", response_model=ProfileUpdateResponse)
-async def update_profile(payload: ProfileUpdateRequest, db: Session = Depends(get_db)):
-    get_user_or_404(db, payload.user_id)
+def update_profile(
+    payload: ProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    x_device_key: str | None = Header(default=None),
+):
+    require_user_access(db, payload.user_id, x_device_key)
 
     conversations = (
         db.query(Conversation)
@@ -26,11 +30,7 @@ async def update_profile(payload: ProfileUpdateRequest, db: Session = Depends(ge
 
     summary = rag_service.regenerate_profile_from_history(payload.user_id, texts)
 
-    profile = (
-        db.query(ProfileDocument)
-        .filter(ProfileDocument.user_id == payload.user_id)
-        .first()
-    )
+    profile = db.query(ProfileDocument).filter(ProfileDocument.user_id == payload.user_id).first()
     if profile:
         profile.content = summary
     else:

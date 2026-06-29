@@ -10,9 +10,10 @@ DROP_FROM_RECENT_AVG_THRESHOLD = 5
 Z_SCORE_THRESHOLD = 1.5
 
 SOLUTION_MAP = {
-    "low_emotion": "정서 케어 콘텐츠 추천 (밝은 음악, 가족 전화 유도)",
-    "low_energy": "신체 활동 권장 콘텐츠 추천 (가벼운 스트레칭 안내)",
-    "health_keyword": "보호자 알림 + 병원 방문 안내",
+    "crisis_keyword": "Immediate safety check recommended. Contact a trusted family member or emergency support.",
+    "health_keyword": "Health warning detected. Consider contacting a caregiver or medical service.",
+    "low_emotion": "Offer emotional support, gentle music, or a family call.",
+    "low_energy": "Suggest a light activity, stretch, water, or rest check.",
 }
 
 
@@ -20,7 +21,6 @@ class AnomalyService:
     def _is_low_or_dropping(self, scores: np.ndarray, low_threshold: float) -> bool:
         latest = scores[0]
 
-        # 낮은 누적 점수 즉시 케어.
         if latest <= low_threshold:
             return True
 
@@ -32,7 +32,6 @@ class AnomalyService:
         drop_from_avg = recent_avg - latest
         z = (latest - recent_avg) / recent_std
 
-        # 절대 하락폭 + z-score 동시 확인.
         return drop_from_avg >= DROP_FROM_RECENT_AVG_THRESHOLD and z < -Z_SCORE_THRESHOLD
 
     def detect(self, db: Session, user_id: int, window: int = 14) -> dict:
@@ -46,8 +45,11 @@ class AnomalyService:
         if not records:
             return {"anomaly_detected": False, "recommended_solution": None}
 
-        # 건강 위험 맥락 최우선.
-        if records[0].health_keyword_flag:
+        latest = records[0]
+        if latest.crisis_keyword_flag:
+            return {"anomaly_detected": True, "recommended_solution": SOLUTION_MAP["crisis_keyword"]}
+
+        if latest.health_keyword_flag:
             return {"anomaly_detected": True, "recommended_solution": SOLUTION_MAP["health_keyword"]}
 
         emotion_scores = np.array([r.emotion_score for r in records if r.emotion_score is not None])

@@ -1,13 +1,15 @@
-from pydantic_settings import BaseSettings
 from typing import Literal
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     # General
     app_name: str = "Calm Chat"
     env: str = "development"
+    cors_allow_origins: str = "*"
 
-    # Database (MySQL)
+    # Database
     mysql_host: str = "localhost"
     mysql_port: int = 3306
     mysql_user: str = "root"
@@ -21,13 +23,13 @@ class Settings(BaseSettings):
             f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_db}"
         )
 
-    # Vector DB (RAG)
+    # Vector DB / profile retrieval
     vector_db_path: str = "./data/chroma_db"
     vector_db_collection: str = "user_profiles"
-    rag_update_interval_minutes: int = 60  # 프로파일 문서 자동 갱신 주기 (논의 필요했던 값)
+    rag_update_interval_minutes: int = 60
     rag_top_k: int = 5
 
-    # LLM provider: "anthropic" | "openai" | "gemini" | "local"  -> 팀 합의 후 결정
+    # LLM provider
     llm_provider: Literal["anthropic", "openai", "gemini", "local"] = "anthropic"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
@@ -36,16 +38,13 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
 
-    # STT (Whisper)
-    whisper_model_size: str = "base"  # tiny/base/small/medium/large
-    whisper_finetuned_checkpoint: str = ""  # 사투리 파인튜닝 체크포인트 경로 (있으면 우선 사용)
+    # STT
+    whisper_model_size: str = "base"
+    whisper_finetuned_checkpoint: str = ""
 
-    # TTS
-    tts_engine: str = "xtts"
-
-    # XTTS
-    xtts_model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2"
-    voice_storage_dir: str = "./data/family_voices"
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
     class Config:
         env_file = ".env"

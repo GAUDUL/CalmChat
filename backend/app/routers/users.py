@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -9,10 +9,8 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 
 def clean_optional_text(value: str | None) -> str | None:
-    # Store blank optional form fields as NULL so "missing profile data" checks stay simple.
     if value is None:
         return None
-
     stripped = value.strip()
     return stripped or None
 
@@ -21,21 +19,41 @@ def get_user_or_404(db: Session, user_id: int) -> User:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    changed = False
     if user.family_voice_enabled is None:
         user.family_voice_enabled = False
+        changed = True
+    if user.onboarding_completed is None:
+        user.onboarding_completed = bool(user.name and user.phone and user.region_dialect)
+        changed = True
+    # Persist legacy NULL values once when they are observed.
+    if changed:
+        db.commit()
+        db.refresh(user)
+    return user
+
+
+def require_user_access(
+    db: Session,
+    user_id: int,
+    x_device_key: str | None,
+) -> User:
+    user = get_user_or_404(db, user_id)
+    # This is not full account auth, but it closes the IDOR hole in the current
+    # device-key identity model by binding requests to the device-created user.
+    if not x_device_key or user.device_key != x_device_key:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return user
 
 
 @router.post("/device", response_model=UserResponse)
-async def register_device_user(payload: DeviceUserRequest, db: Session = Depends(get_db)):
-    # First launch / returning launch entrypoint: reuse the same user row for this device.
+def register_device_user(payload: DeviceUserRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.device_key == payload.device_key).first()
     if user:
-        if user.family_voice_enabled is None:
-            user.family_voice_enabled = False
-        return user
+        return get_user_or_404(db, user.id)
 
-    user = User(device_key=payload.device_key, name=payload.name)
+    user = User(device_key=payload.device_key, name=payload.name, onboarding_completed=False)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -43,18 +61,22 @@ async def register_device_user(payload: DeviceUserRequest, db: Session = Depends
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-async def get_user(user_id: int, db: Session = Depends(get_db)):
-    return get_user_or_404(db, user_id)
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    x_device_key: str | None = Header(default=None),
+):
+    return require_user_access(db, user_id, x_device_key)
 
 
 @router.patch("/{user_id}", response_model=UserResponse)
-async def update_user(
+def update_user(
     user_id: int,
     payload: UserPreferenceUpdate,
     db: Session = Depends(get_db),
+    x_device_key: str | None = Header(default=None),
 ):
-    # Onboarding and profile settings both update the same users row.
-    user = get_user_or_404(db, user_id)
+    user = require_user_access(db, user_id, x_device_key)
 
     if payload.name is not None:
         name = clean_optional_text(payload.name)
@@ -65,7 +87,6 @@ async def update_user(
     if payload.phone is not None:
         phone = clean_optional_text(payload.phone)
         if phone:
-            # Phone is optional, but if provided it must still identify only one user.
             existing_phone_user = (
                 db.query(User)
                 .filter(User.phone == phone, User.id != user.id)
@@ -80,6 +101,8 @@ async def update_user(
 
     if payload.family_voice_enabled is not None:
         user.family_voice_enabled = payload.family_voice_enabled
+
+    user.onboarding_completed = bool(user.name and user.phone and user.region_dialect)
 
     db.commit()
     db.refresh(user)

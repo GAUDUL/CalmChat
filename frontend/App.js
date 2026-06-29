@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  View,
-  Text,
   Pressable,
-  StyleSheet,
   SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { colors } from "./src/theme/theme";
-import HomeScreen from "./src/screens/HomeScreen";
 import ChatScreen from "./src/screens/ChatScreen";
+import HomeScreen from "./src/screens/HomeScreen";
 import MoodScreen from "./src/screens/MoodScreen";
-import ProfileScreen from "./src/screens/ProfileScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
+import ProfileScreen from "./src/screens/ProfileScreen";
 import { fetchMetrics, registerDeviceUser } from "./src/api/client";
 import { getOrCreateDeviceKey } from "./src/storage/deviceUser";
 
@@ -49,7 +49,6 @@ export default function App() {
         }
 
         try {
-          // Mood 화면 공유 점수 갱신.
           const nextMetrics = await fetchMetrics(user.id);
           setMetrics(nextMetrics);
           setMetricsLoading(false);
@@ -72,7 +71,6 @@ export default function App() {
 
     async function initializeUser() {
       try {
-        // No-login identity flow: keep a local device key, then resolve it to a DB user.
         const deviceKey = await getOrCreateDeviceKey();
         const registeredUser = await registerDeviceUser(deviceKey);
         if (mounted) {
@@ -103,10 +101,8 @@ export default function App() {
   const ActiveScreen =
     TABS.find((tab) => tab.key === activeTab)?.Component || HomeScreen;
   const needsProfileSetup =
-    // Keep the first-run experience lightweight, but require enough profile data
-    // to personalize DB-backed chat, mood, and profile views.
+    !user?.onboarding_completed ||
     !user?.name ||
-    user.name === "CalmChat User" ||
     !user?.phone ||
     !user?.region_dialect;
 
@@ -209,7 +205,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   tabItem: { flex: 1, alignItems: "center", gap: 2 },
-  tabIcon: { fontSize: 22, opacity: 0.5 },
+  tabIcon: { fontSize: 18, fontWeight: "800", opacity: 0.5 },
   tabIconActive: { opacity: 1 },
   tabLabel: { fontSize: 12, fontWeight: "600", color: colors.mutedForeground },
   tabLabelActive: { color: colors.primary },

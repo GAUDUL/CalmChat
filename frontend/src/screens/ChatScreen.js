@@ -1,29 +1,34 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
   PermissionsAndroid,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import AudioRecord from "react-native-audio-record";
+import RNFS from "react-native-fs";
+import Sound from "react-native-sound";
 
 import { AnimatedAvatar } from "../components/Avatar/AnimatedAvatar";
 import { CalmButton } from "../components/ui/CalmButton";
 import { CalmCard } from "../components/ui/CalmCard";
+import { sendVoiceChat, updateProfile } from "../api/client";
 import { colors } from "../theme/theme";
-import { sendVoiceChat, fetchTTSAudio, updateProfile } from "../api/client";
+
+const PROFILE_UPDATE_TURN_INTERVAL = 4;
+
+Sound.setCategory("Playback");
 
 export default function ChatScreen({ user, onRefreshMetrics }) {
   const [avatarState, setAvatarState] = useState("idle");
   const [lastResponse, setLastResponse] = useState("");
+  const turnsSinceProfileUpdate = useRef(0);
 
   const isBusy = avatarState === "thinking" || avatarState === "speaking";
 
   const requestPermission = async () => {
-    await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
-    );
+    await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
   };
 
   const startRecording = async () => {
@@ -48,24 +53,63 @@ export default function ChatScreen({ user, onRefreshMetrics }) {
     }
   };
 
+  const maybeUpdateProfile = async () => {
+    turnsSinceProfileUpdate.current += 1;
+    if (turnsSinceProfileUpdate.current < PROFILE_UPDATE_TURN_INTERVAL) {
+      return;
+    }
+
+    turnsSinceProfileUpdate.current = 0;
+    try {
+      await updateProfile(user.id);
+    } catch (err) {
+      console.warn("Profile refresh skipped:", err);
+    }
+  };
+
+  const playBase64Audio = async (audioBase64, contentType = "audio/wav") => {
+    if (!audioBase64) {
+      return;
+    }
+
+    const extension = contentType.includes("mpeg") ? "mp3" : "wav";
+    const filePath = `${RNFS.CachesDirectoryPath}/calmchat-tts-${Date.now()}.${extension}`;
+
+    await RNFS.writeFile(filePath, audioBase64, "base64");
+
+    await new Promise((resolve, reject) => {
+      const sound = new Sound(filePath, "", (loadError) => {
+        if (loadError) {
+          RNFS.unlink(filePath).catch(() => {});
+          reject(loadError);
+          return;
+        }
+
+        sound.play((success) => {
+          sound.release();
+          RNFS.unlink(filePath).catch(() => {});
+          if (success) {
+            resolve();
+          } else {
+            reject(new Error("TTS playback failed."));
+          }
+        });
+      });
+    });
+  };
+
   const stopRecordingAndProcess = async () => {
     setAvatarState("thinking");
 
     try {
       const filePath = await AudioRecord.stop();
 
-      // Server resolves STT + chat for the current device-backed user.
-      const { response_text } = await sendVoiceChat(user.id, filePath);
-      setLastResponse(response_text);
+      const result = await sendVoiceChat(user.id, filePath);
+      setLastResponse(result.response_text);
       await onRefreshMetrics?.({ retries: 3, delayMs: 500 });
-
       setAvatarState("speaking");
-      await fetchTTSAudio(
-        user.id,
-        response_text,
-        Boolean(user.family_voice_enabled)
-      );
-      await updateProfile(user.id);
+      await playBase64Audio(result.audio_base64, result.audio_content_type);
+      maybeUpdateProfile();
     } catch (err) {
       console.error("Failed to process voice message:", err);
     } finally {

@@ -47,6 +47,7 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     region_dialect: Optional[str] = None
     family_voice_enabled: bool = False
+    onboarding_completed: bool = False
     created_at: datetime
 
     class Config:
