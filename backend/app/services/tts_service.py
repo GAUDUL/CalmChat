@@ -1,49 +1,68 @@
-import io
-import wave
 """
 TTS 서비스.
-  - standard: 기본 합성 음성
-  - family_voice: 사전 등록된 가족 음성 샘플로 클로닝된 음성 사용 (사용자가 켜고 끌 수 있는 옵트인 기능)
-
-TODO: 실제 TTS 엔진 연동 (예: ElevenLabs, Coqui TTS, Azure/Naver Clova 등) - 모델 선정 논의 필요.
-지금은 인터페이스만 잡아두고, 엔진이 정해지면 _synthesize_* 메서드 내부만 교체하면 됨.
+  - standard: 기본 합성 음성 (ElevenLabs)
+  - family_voice: 사전 등록된 가족 음성 샘플로 클로닝된 음성 사용
 """
+import os
+import requests
+
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George (무료 플랜)
+ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 
 class TTSService:
-    def synthesize(
-        self,
-        text: str,
-        use_family_voice: bool = False,
-        voice_model_id: str = None,
-    ) -> bytes:
+    def synthesize(self, text: str, use_family_voice: bool = False, voice_model_id: str = None) -> bytes:
         if use_family_voice and voice_model_id:
             return self._synthesize_family_voice(text, voice_model_id)
         return self._synthesize_standard(text)
 
     def _synthesize_standard(self, text: str) -> bytes:
-        # Development fallback: return a short valid WAV so the app can test playback
-        # before a real TTS provider is wired in.
-        return self._make_silent_wav()
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+            "model_id": ELEVENLABS_MODEL_ID,
+            "voice_settings": {
+                "stability": 0.7,
+                "similarity_boost": 0.8,
+                "speed": 0.9
+            }
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.content
 
     def _synthesize_family_voice(self, text: str, voice_model_id: str) -> bytes:
-        # Family-voice cloning is a future provider integration; keep the API shape stable.
-        return self._make_silent_wav()
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_model_id}"
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+            "model_id": ELEVENLABS_MODEL_ID,
+            "voice_settings": {
+                "stability": 0.7,
+                "similarity_boost": 0.8,
+                "speed": 0.9
+            }
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.content
 
     def register_family_voice(self, sample_audio_path: str) -> str:
-        # Placeholder until a voice cloning provider returns a persistent voice model id.
-        raise NotImplementedError("Family voice registration is not implemented yet")
-
-    def _make_silent_wav(self, duration_seconds: float = 0.4, sample_rate: int = 16000) -> bytes:
-        frames = int(duration_seconds * sample_rate)
-        buffer = io.BytesIO()
-
-        with wave.open(buffer, "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(b"\x00\x00" * frames)
-
-        return buffer.getvalue()
-
+        """가족 목소리 샘플 업로드 -> voice_model_id 발급"""
+        url = "https://api.elevenlabs.io/v1/voices/add"
+        headers = {"xi-api-key": ELEVENLABS_API_KEY}
+        with open(sample_audio_path, "rb") as f:
+            files = {"files": f}
+            data = {"name": "family_voice"}
+            response = requests.post(url, headers=headers, files=files, data=data)
+        response.raise_for_status()
+        return response.json()["voice_id"]
 
 tts_service = TTSService()
