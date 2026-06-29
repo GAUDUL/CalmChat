@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     whisper_model_size: str = "base"
     whisper_finetuned_checkpoint: str = ""
 
+    # TTS
+    elevenlabs_api_key: str = ""
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
