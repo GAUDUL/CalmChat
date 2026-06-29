@@ -38,7 +38,8 @@ def text_to_speech(
 
     audio_bytes = tts_service.synthesize(
         text=payload.text,
-        voice_id=voice_id,
+        voice_model_id=voice_id,
+        use_family_voice=bool(voice_id),
     )
 
     return Response(content=audio_bytes, media_type="audio/mpeg")

@@ -22,7 +22,7 @@ class VoiceChatResponse(ChatResponse):
     text: str
     confidence: Optional[float] = None
     audio_base64: Optional[str] = None
-    audio_content_type: str = "audio/wav"
+    audio_content_type: str = "audio/mpeg"
 
 
 class ConversationResponse(BaseModel):

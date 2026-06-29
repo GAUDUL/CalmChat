@@ -109,13 +109,13 @@ def voice_chat(
         # 해당 사용자의 가족 음성 모델 ID 조회
         if user.family_voice_enabled:
             family_voice = db.query(FamilyVoice).filter(FamilyVoice.user_id == user_id).first()
-            voice_model_id = family_voice.voice_model_id if family_voice else None
+            voice_model_id = family_voice.voice_id if family_voice else None
 
         # TTS 수행
         audio_bytes = tts_service.synthesize(
             text=response_text,
             use_family_voice=user.family_voice_enabled,
-            voice_id=voice_model_id,
+            voice_model_id=voice_model_id,
         )
 
         return VoiceChatResponse(
@@ -124,7 +124,7 @@ def voice_chat(
             response_text=response_text,
             used_context=context,
             audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
-            audio_content_type="audio/wav",
+            audio_content_type="audio/mpeg",
         )
     finally:
         if tmp_path and os.path.exists(tmp_path):
