@@ -17,7 +17,7 @@ import { colors } from "../theme/theme";
 
 export default function OnboardingScreen({ user, onComplete }) {
   // This is intentionally a short setup form instead of a full signup/login screen.
-  const [name, setName] = useState(user?.name === "CalmChat User" ? "" : user?.name || "");
+  const [name, setName] = useState(user?.onboarding_completed ? user?.name || "" : "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [region, setRegion] = useState(user?.region_dialect || "");
   const [saving, setSaving] = useState(false);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   Text,
   StyleSheet,
@@ -8,52 +8,49 @@ import {
 } from "react-native";
 import { CalmCard } from "../components/ui/CalmCard";
 import { colors } from "../theme/theme";
-import { fetchMetrics } from "../api/client";
 
-export default function MoodScreen({ user }) {
-  const [metrics, setMetrics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+export default function MoodScreen({
+  user,
+  metrics,
+  metricsLoading,
+  metricsError,
+  onRefreshMetrics,
+}) {
+  const emotionScore = metrics?.emotion_score ?? 50;
+  const energyScore = metrics?.energy_score ?? 50;
 
   useEffect(() => {
     if (!user?.id) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    // Mood 진입 시 최신 점수 요청.
+    onRefreshMetrics?.();
+  }, [onRefreshMetrics, user?.id]);
 
-    // Mood metrics are scoped by the user row created for this device.
-    fetchMetrics(user.id)
-      .then(setMetrics)
-      .catch((err) => {
-        console.error("Failed to load metrics:", err);
-        setError("Could not load your mood data.");
-      })
-      .finally(() => setLoading(false));
-  }, [user?.id]);
+  const showLoading = metricsLoading && !metrics;
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Today's Mood</Text>
 
-        {loading ? (
+        {showLoading ? (
           <ActivityIndicator size="large" color={colors.primary} />
-        ) : error ? (
+        ) : metricsError ? (
           <CalmCard style={styles.card}>
-            <Text style={styles.label}>{error}</Text>
+            <Text style={styles.label}>{metricsError}</Text>
           </CalmCard>
         ) : (
           <>
             <CalmCard style={styles.card}>
               <Text style={styles.label}>Emotion score</Text>
-              <Text style={styles.value}>{metrics?.emotion_score ?? "-"}</Text>
+              <Text style={styles.value}>{emotionScore}</Text>
             </CalmCard>
 
             <CalmCard style={styles.card}>
               <Text style={styles.label}>Energy score</Text>
-              <Text style={styles.value}>{metrics?.energy_score ?? "-"}</Text>
+              <Text style={styles.value}>{energyScore}</Text>
             </CalmCard>
 
             {metrics?.anomaly_detected && (

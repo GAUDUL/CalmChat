@@ -1,19 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  View,
-  Text,
   Pressable,
-  StyleSheet,
   SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { colors } from "./src/theme/theme";
-import HomeScreen from "./src/screens/HomeScreen";
 import ChatScreen from "./src/screens/ChatScreen";
+import HomeScreen from "./src/screens/HomeScreen";
 import MoodScreen from "./src/screens/MoodScreen";
-import ProfileScreen from "./src/screens/ProfileScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
-import { registerDeviceUser } from "./src/api/client";
+import ProfileScreen from "./src/screens/ProfileScreen";
+import { fetchMetrics, registerDeviceUser } from "./src/api/client";
 import { getOrCreateDeviceKey } from "./src/storage/deviceUser";
 
 const TABS = [
@@ -28,13 +28,49 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [userError, setUserError] = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState(null);
+
+  const refreshMetrics = useCallback(
+    async ({ retries = 0, delayMs = 500 } = {}) => {
+      if (!user?.id) {
+        return null;
+      }
+
+      setMetricsLoading(true);
+      setMetricsError(null);
+
+      let lastError = null;
+
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+
+        try {
+          const nextMetrics = await fetchMetrics(user.id);
+          setMetrics(nextMetrics);
+          setMetricsLoading(false);
+          return nextMetrics;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      console.error("Failed to load metrics:", lastError);
+      setMetricsError("Could not load your mood data.");
+      setMetricsLoading(false);
+      return null;
+    },
+    [user?.id]
+  );
 
   useEffect(() => {
     let mounted = true;
 
     async function initializeUser() {
       try {
-        // No-login identity flow: keep a local device key, then resolve it to a DB user.
         const deviceKey = await getOrCreateDeviceKey();
         const registeredUser = await registerDeviceUser(deviceKey);
         if (mounted) {
@@ -58,13 +94,15 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    refreshMetrics();
+  }, [refreshMetrics]);
+
   const ActiveScreen =
     TABS.find((tab) => tab.key === activeTab)?.Component || HomeScreen;
   const needsProfileSetup =
-    // Keep the first-run experience lightweight, but require enough profile data
-    // to personalize DB-backed chat, mood, and profile views.
+    !user?.onboarding_completed ||
     !user?.name ||
-    user.name === "CalmChat User" ||
     !user?.phone ||
     !user?.region_dialect;
 
@@ -106,6 +144,10 @@ export default function App() {
           onNavigate={setActiveTab}
           user={user}
           onUserChange={setUser}
+          metrics={metrics}
+          metricsLoading={metricsLoading}
+          metricsError={metricsError}
+          onRefreshMetrics={refreshMetrics}
         />
       </View>
 
@@ -163,7 +205,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   tabItem: { flex: 1, alignItems: "center", gap: 2 },
-  tabIcon: { fontSize: 22, opacity: 0.5 },
+  tabIcon: { fontSize: 18, fontWeight: "800", opacity: 0.5 },
   tabIconActive: { opacity: 1 },
   tabLabel: { fontSize: 12, fontWeight: "600", color: colors.mutedForeground },
   tabLabelActive: { color: colors.primary },

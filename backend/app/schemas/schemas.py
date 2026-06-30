@@ -22,7 +22,17 @@ class VoiceChatResponse(ChatResponse):
     text: str
     confidence: Optional[float] = None
     audio_base64: Optional[str] = None
-    audio_content_type: str = "audio/wav"
+    audio_content_type: str = "audio/mpeg"
+
+
+class ConversationResponse(BaseModel):
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class DeviceUserRequest(BaseModel):
@@ -37,6 +47,7 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     region_dialect: Optional[str] = None
     family_voice_enabled: bool = False
+    onboarding_completed: bool = False
     created_at: datetime
 
     class Config:
@@ -76,3 +87,8 @@ class MetricsResponse(BaseModel):
 class FamilyVoiceRegisterRequest(BaseModel):
     user_id: int
     family_member_name: str
+
+
+class FamilyVoiceEnabledRequest(BaseModel):
+    user_id: int
+    enabled: bool    

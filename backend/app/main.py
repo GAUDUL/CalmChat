@@ -2,35 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 
+from app.config import settings
 from app.database import Base, engine
-from app.routers import stt, chat, tts, profile, metrics, users
+from app.routers import chat, metrics, profile, stt, tts, users
 
 Base.metadata.create_all(bind=engine)
-
-
-def ensure_runtime_schema():
-    # create_all() does not add columns to an existing table, so keep local/dev DBs usable
-    # after introducing device-based identity.
-    inspector = inspect(engine)
-    if "users" not in inspector.get_table_names():
-        return
-
-    user_columns = {column["name"] for column in inspector.get_columns("users")}
-    if "device_key" in user_columns:
-        return
-
-    with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE users ADD COLUMN device_key VARCHAR(100) NULL"))
-        connection.execute(text("CREATE UNIQUE INDEX ix_users_device_key ON users (device_key)"))
-
-
-ensure_runtime_schema()
 
 app = FastAPI(title="Elderly Companion AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: 운영 환경에서는 React Native 앱 도메인으로 제한
+    # Set CORS_ALLOW_ORIGINS to a comma-separated allowlist in production.
+    allow_origins=settings.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -44,5 +27,5 @@ app.include_router(users.router)
 
 
 @app.get("/health")
-async def health_check():
+def health_check():
     return {"status": "ok"}
