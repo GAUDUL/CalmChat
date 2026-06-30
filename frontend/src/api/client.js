@@ -122,4 +122,14 @@ export async function fetchMetrics(userId) {
   return data;
 }
 
+export async function fetchRecentMessages(userId) {
+  const { data } = await api.get("/home/recent-messages", {
+    params: {
+      user_id: userId,
+    },
+  });
+
+  return data;
+}
+
 export default api;

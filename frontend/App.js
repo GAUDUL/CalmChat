@@ -13,8 +13,12 @@ import HomeScreen from "./src/screens/HomeScreen";
 import MoodScreen from "./src/screens/MoodScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
-import { fetchMetrics, registerDeviceUser } from "./src/api/client";
 import { getOrCreateDeviceKey } from "./src/storage/deviceUser";
+import {
+  fetchMetrics,
+  registerDeviceUser,
+  fetchRecentMessages,
+} from "./src/api/client";
 
 const TABS = [
   { key: "Home", label: "Home", icon: "🏠", Component: HomeScreen },
@@ -28,15 +32,16 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [userError, setUserError] = useState(null);
+
   const [metrics, setMetrics] = useState(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState(null);
 
+  const [recentMessages, setRecentMessages] = useState([]);
+
   const refreshMetrics = useCallback(
     async ({ retries = 0, delayMs = 500 } = {}) => {
-      if (!user?.id) {
-        return null;
-      }
+      if (!user?.id) return null;
 
       setMetricsLoading(true);
       setMetricsError(null);
@@ -73,33 +78,37 @@ export default function App() {
       try {
         const deviceKey = await getOrCreateDeviceKey();
         const registeredUser = await registerDeviceUser(deviceKey);
-        if (mounted) {
-          setUser(registeredUser);
-        }
+
+        if (!mounted) return;
+
+        setUser(registeredUser);
+
+        const [m, r] = await Promise.all([
+          fetchMetrics(registeredUser.id),
+          fetchRecentMessages(registeredUser.id),
+        ]);
+
+        setMetrics(m);
+        setRecentMessages(r);
+
       } catch (err) {
-        console.error("Failed to initialize device user:", err);
-        if (mounted) {
-          setUserError("Could not prepare this device profile.");
-        }
+        console.error(err);
+        setUserError("Could not prepare this device profile.");
       } finally {
-        if (mounted) {
-          setLoadingUser(false);
-        }
+        if (mounted) setLoadingUser(false);
       }
     }
 
     initializeUser();
+
     return () => {
       mounted = false;
     };
   }, []);
 
-  useEffect(() => {
-    refreshMetrics();
-  }, [refreshMetrics]);
-
   const ActiveScreen =
     TABS.find((tab) => tab.key === activeTab)?.Component || HomeScreen;
+
   const needsProfileSetup =
     !user?.onboarding_completed ||
     !user?.name ||
@@ -145,6 +154,7 @@ export default function App() {
           user={user}
           onUserChange={setUser}
           metrics={metrics}
+          recentMessages={recentMessages}
           metricsLoading={metricsLoading}
           metricsError={metricsError}
           onRefreshMetrics={refreshMetrics}
