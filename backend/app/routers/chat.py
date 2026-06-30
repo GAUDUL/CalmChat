@@ -23,13 +23,49 @@ CHAT_HISTORY_LIMIT = 80
 
 def generate_chat_response(user_id: int, text: str, db: Session):
     context = rag_service.get_relevant_context(db, user_id, text)
-    response_text = llm_service.generate_response(text, context)
+    packed_context = "\n\n".join(context)
 
-    db.add(Conversation(user_id=user_id, role="user", content=text))
-    db.add(Conversation(user_id=user_id, role="assistant", content=response_text))
+    response_text = llm_service.generate_response(
+        user_text=text,
+        context=[packed_context]
+    )
+
+    user_message = Conversation(
+        user_id=user_id,
+        role="user",
+        content=text,
+    )
+
+    assistant_message = Conversation(
+        user_id=user_id,
+        role="assistant",
+        content=response_text,
+    )
+
+    db.add(user_message)
+    db.add(assistant_message)
     db.commit()
 
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+
+    # 추가
+    rag_service.add_conversation(
+        user_message.id,
+        user_id,
+        "user",
+        text,
+    )
+
+    rag_service.add_conversation(
+        assistant_message.id,
+        user_id,
+        "assistant",
+        response_text,
+    )
+
     return response_text, context
+
 
 
 @router.get("/history/{user_id}", response_model=list[ConversationResponse])

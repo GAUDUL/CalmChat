@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
@@ -38,4 +38,4 @@ def update_profile(
         db.add(profile)
     db.commit()
 
-    return ProfileUpdateResponse(status="ok", updated_at=datetime.utcnow())
+    return ProfileUpdateResponse(status="ok", updated_at=datetime.now(timezone.utc) )
