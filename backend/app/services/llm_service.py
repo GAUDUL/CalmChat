@@ -1,6 +1,10 @@
 from typing import List
+import logging
 
 from app.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class LLMService:
@@ -8,18 +12,50 @@ class LLMService:
         self.provider = settings.llm_provider
 
     def generate_response(self, user_text: str, context: List[str], system_prompt: str = None) -> str:
-        system_prompt = system_prompt or self._default_system_prompt()
+        system_prompt = system_prompt or self.default_system_prompt()
         context_block = "\n".join(context) if context else ""
 
-        if self.provider == "anthropic":
-            return self._call_anthropic(system_prompt, context_block, user_text)
-        if self.provider == "openai":
-            return self._call_openai(system_prompt, context_block, user_text)
-        if self.provider == "gemini":
-            return self._call_gemini(system_prompt, context_block, user_text)
-        return self._call_local(system_prompt, context_block, user_text)
+        try:
+            if self.provider == "anthropic":
+                return self._call_anthropic(system_prompt, context_block, user_text)
+            if self.provider == "openai":
+                return self._call_openai(system_prompt, context_block, user_text)
+            if self.provider == "gemini":
+                return self._call_gemini(system_prompt, context_block, user_text)
+            return self._call_local(system_prompt, context_block, user_text)
+        except Exception as exc:
+            logger.exception("llm_provider_error provider=%s error=%s", self.provider, exc)
+            return "I'm sorry, but the AI service is currently unavailable. Please try again later."
 
-    def _default_system_prompt(self) -> str:
+    def confirm_danger_signal(self, user_text: str, matched_keywords: list[str]) -> bool | None:
+        prompt = (
+            "Classify whether this elderly user's message indicates an immediate health "
+            "or self-harm danger that should trigger emergency-level intervention. "
+            "Answer with only YES or NO.\n\n"
+            f"Matched keywords: {', '.join(matched_keywords)}\n"
+            f"Message: {user_text}"
+        )
+        try:
+            response = self.generate_response(
+                user_text=prompt,
+                context=[],
+                system_prompt=(
+                    "You are a strict safety triage classifier. "
+                    "Return only YES for immediate danger, otherwise NO."
+                ),
+            )
+        except Exception as exc:
+            print(f"[Danger Confirmation Error] {exc}")
+            return None
+
+        normalized = response.strip().lower()
+        if normalized.startswith("yes"):
+            return True
+        if normalized.startswith("no"):
+            return False
+        return None
+
+    def default_system_prompt(self) -> str:
         return (
             "You are a friendly AI companion who offers emotional support to elderly users. "
             "The user may speak Korean or a Korean dialect, but you must always respond in English. "
@@ -64,12 +100,8 @@ class LLMService:
             f"[User profile context]\n{context_block}\n\n"
             f"User:\n{user_text}"
         )
-        try:
-            response = client.models.generate_content(model=settings.gemini_model, contents=prompt)
-            return response.text
-        except Exception as exc:
-            print(f"[Gemini Error] {exc}")
-            return "I'm sorry, but the AI service is currently unavailable. Please try again later."
+        response = client.models.generate_content(model=settings.gemini_model, contents=prompt)
+        return response.text
 
     def _call_local(self, system_prompt, context_block, user_text) -> str:
         raise NotImplementedError("Local model provider is not implemented.")

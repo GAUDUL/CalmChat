@@ -11,6 +11,13 @@ export default function HomeScreen({
   metrics,
   recentMessages = [],
 }) {
+  const riskLabelMap = {
+    caution: "Caution",
+    warning: "Warning",
+    danger: "Danger",
+  };
+  const riskLabel = riskLabelMap[metrics?.risk_level];
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -51,6 +58,7 @@ export default function HomeScreen({
             <Text style={styles.cardTextBold}>Status</Text>{"\n"}
             Emotion: {metrics?.emotion_score ?? "-"}{"\n"}
             Energy: {metrics?.energy_score ?? "-"}
+            {riskLabel ? `\nRisk level: ${riskLabel}` : ""}
           </Text>
         </CalmCard>
 

@@ -10,6 +10,8 @@ from app.database import get_db
 from app.models.db_models import Conversation, FamilyVoice
 from app.routers.users import require_user_access
 from app.schemas.schemas import ChatRequest, ChatResponse, ConversationResponse, VoiceChatResponse
+from app.services.anomaly_service import RISK_ORDER, anomaly_service
+from app.services.emotion.processor import engine as emotion_engine
 from app.services.emotion.worker import run_emotion_pipeline
 from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
@@ -21,13 +23,126 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 CHAT_HISTORY_LIMIT = 80
 
 
+def higher_risk(left: str, right: str) -> str:
+    return left if RISK_ORDER.get(left, 0) >= RISK_ORDER.get(right, 0) else right
+
+
+def current_safety_guidance(text: str, current_signal: dict) -> dict:
+    matched_keywords = (
+        current_signal.get("matched_keywords", {}).get("crisis", [])
+        + current_signal.get("matched_keywords", {}).get("health", [])
+    )
+    if not (current_signal["crisis_keyword_flag"] or current_signal["health_keyword_flag"]):
+        return {
+            "risk_level": "normal",
+            "feedback_actions": [],
+            "health_keyword_flag_override": None,
+            "crisis_keyword_flag_override": None,
+        }
+
+    signal_kind = "crisis" if current_signal["crisis_keyword_flag"] else "health"
+    confirmed = True
+    if current_signal.get("danger_confidence") == "ambiguous":
+        confirmed = llm_service.confirm_danger_signal(text, matched_keywords)
+
+    risk_level = "danger" if confirmed is True else "warning"
+    is_danger = risk_level == "danger"
+
+    if signal_kind == "crisis":
+        actions = [
+            "Encourage immediate caregiver or emergency support contact."
+            if is_danger
+            else "Ask one calm clarification question before escalating.",
+            "Keep the reply calm, short, and direct.",
+        ]
+        return {
+            "risk_level": risk_level,
+            "feedback_actions": actions,
+            "health_keyword_flag_override": False,
+            "crisis_keyword_flag_override": is_danger,
+        }
+
+    actions = [
+        "Encourage immediate caregiver or medical support contact."
+        if is_danger
+        else "Ask one calm clarification question about the symptom severity.",
+        "Keep the reply calm, short, and direct.",
+    ]
+    return {
+        "risk_level": risk_level,
+        "feedback_actions": actions,
+        "health_keyword_flag_override": is_danger,
+        "crisis_keyword_flag_override": False,
+    }
+
+
+def build_anomaly_system_prompt(anomaly_result: dict) -> str | None:
+    risk_level = anomaly_result.get("risk_level", "normal")
+    if risk_level == "normal":
+        return None
+
+    actions = anomaly_result.get("feedback_actions", [])
+    action_block = "\n".join(f"- {action}" for action in actions)
+
+    guidance_by_level = {
+        "caution": (
+            "The user's recent mood or energy has shown a mild decline. "
+            "Naturally suggest one gentle activity, such as a short walk, sunlight, "
+            "or recalling a pleasant memory. Do not mention scores or anomaly detection."
+        ),
+        "warning": (
+            "The user's recent mood or energy has shown a noticeable decline. "
+            "Lead with empathy, then proactively suggest one supportive action such as "
+            "listening to familiar music, taking a small rest, or contacting family. "
+            "Do not sound alarming, and do not mention scores or anomaly detection."
+        ),
+        "danger": (
+            "A health or safety risk signal has been detected. Respond calmly and directly. "
+            "Encourage the user to contact a caregiver or emergency support now. "
+            "Do not minimize the situation."
+        ),
+    }
+
+    return (
+        f"{llm_service.default_system_prompt()}\n\n"
+        "[Internal care guidance]\n"
+        f"Risk level: {risk_level}\n"
+        f"{guidance_by_level.get(risk_level, '')}\n"
+        "Use these service actions as private guidance, not as a visible checklist:\n"
+        f"{action_block}"
+    )
+
+
 def generate_chat_response(user_id: int, text: str, db: Session):
     context = rag_service.get_relevant_context(db, user_id, text)
     packed_context = "\n\n".join(context)
+    anomaly_result = anomaly_service.detect(db, user_id)
+    current_signal = emotion_engine.extract(text)
+    current_guidance = current_safety_guidance(text, current_signal)
+    merged_risk_level = higher_risk(
+        anomaly_result.get("risk_level", "normal"),
+        current_guidance["risk_level"],
+    )
+    if current_guidance["risk_level"] != "normal":
+        current_is_at_least_existing = (
+            RISK_ORDER[current_guidance["risk_level"]]
+            >= RISK_ORDER[anomaly_result.get("risk_level", "normal")]
+        )
+        anomaly_result = {
+            **anomaly_result,
+            "risk_level": merged_risk_level,
+            "feedback_actions": (
+                current_guidance["feedback_actions"]
+                if current_is_at_least_existing
+                else anomaly_result.get("feedback_actions", [])
+            ),
+        }
+    system_prompt = build_anomaly_system_prompt(anomaly_result)
 
     response_text = llm_service.generate_response(
         user_text=text,
-        context=[packed_context]
+        context=[packed_context],
+        system_prompt=system_prompt,
     )
 
     user_message = Conversation(
@@ -64,7 +179,10 @@ def generate_chat_response(user_id: int, text: str, db: Session):
         response_text,
     )
 
-    return response_text, context
+    return response_text, context, {
+        "health_keyword_flag_override": current_guidance["health_keyword_flag_override"],
+        "crisis_keyword_flag_override": current_guidance["crisis_keyword_flag_override"],
+    }
 
 
 
@@ -99,9 +217,15 @@ def chat(
 ):
     require_user_access(db, payload.user_id, x_device_key)
 
-    response_text, context = generate_chat_response(payload.user_id, payload.text, db)
+    response_text, context, safety_overrides = generate_chat_response(payload.user_id, payload.text, db)
 
-    background_tasks.add_task(run_emotion_pipeline, payload.user_id, payload.text)
+    background_tasks.add_task(
+        run_emotion_pipeline,
+        payload.user_id,
+        payload.text,
+        safety_overrides["health_keyword_flag_override"],
+        safety_overrides["crisis_keyword_flag_override"],
+    )
 
     return ChatResponse(response_text=response_text, used_context=context)
 
@@ -136,9 +260,15 @@ def voice_chat(
             raise HTTPException(status_code=400, detail="Could not recognize speech.")
 
         # LLM을 통해 응답 생성
-        response_text, context = generate_chat_response(user_id, text, db)
+        response_text, context, safety_overrides = generate_chat_response(user_id, text, db)
         # 감정 분석 파이프라인
-        background_tasks.add_task(run_emotion_pipeline, user_id, text)
+        background_tasks.add_task(
+            run_emotion_pipeline,
+            user_id,
+            text,
+            safety_overrides["health_keyword_flag_override"],
+            safety_overrides["crisis_keyword_flag_override"],
+        )
 
         voice_model_id = None
         # 가족 음성 활성화 경우

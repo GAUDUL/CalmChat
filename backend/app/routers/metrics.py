@@ -35,4 +35,9 @@ def get_metrics(
         energy_score=latest.energy_score if latest else DEFAULT_ENERGY_SCORE,
         anomaly_detected=anomaly_result["anomaly_detected"],
         recommended_solution=anomaly_result["recommended_solution"],
+        risk_level=anomaly_result["risk_level"],
+        anomaly_types=anomaly_result["anomaly_types"],
+        feedback_actions=anomaly_result["feedback_actions"],
+        signals=anomaly_result["signals"],
+        decision_log=anomaly_result["decision_log"],
     )

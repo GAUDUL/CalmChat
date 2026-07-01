@@ -18,6 +18,12 @@ export default function MoodScreen({
 }) {
   const emotionScore = metrics?.emotion_score ?? 50;
   const energyScore = metrics?.energy_score ?? 50;
+  const riskLabelMap = {
+    caution: "Caution",
+    warning: "Warning",
+    danger: "Danger",
+  };
+  const riskLabel = riskLabelMap[metrics?.risk_level] ?? "Change detected";
 
   useEffect(() => {
     if (!user?.id) {
@@ -55,8 +61,10 @@ export default function MoodScreen({
 
             {metrics?.anomaly_detected && (
               <CalmCard warm style={styles.card}>
-                <Text style={styles.alertLabel}>A change was detected</Text>
-                <Text style={styles.label}>{metrics.recommended_solution}</Text>
+                <Text style={styles.alertLabel}>{riskLabel}</Text>
+                {metrics.recommended_solution ? (
+                  <Text style={styles.label}>{metrics.recommended_solution}</Text>
+                ) : null}
               </CalmCard>
             )}
           </>
@@ -82,7 +90,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   card: { width: "100%" },
-  label: { fontSize: 15, color: colors.mutedForeground },
+  label: { fontSize: 18, color: colors.mutedForeground },
   value: {
     fontSize: 28,
     fontWeight: "700",
@@ -90,7 +98,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   alertLabel: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "700",
     color: colors.accent,
     marginBottom: 4,
