@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    danger_confirmation_timeout_seconds: float = 4.0
 
     # STT
     whisper_model_size: str = "base"

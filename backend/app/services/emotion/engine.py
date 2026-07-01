@@ -14,7 +14,6 @@ from .rules import (
 
 class EmotionEngine:
     NEGATION_WINDOW = 8
-    TOKEN_NEGATION_TERMS = {"안", "못", "아니", "않", "없", "no", "not", "never"}
 
     def _has_negation_before(self, text: str, start: int) -> bool:
         prefix = text[max(0, start - self.NEGATION_WINDOW):start].strip()
@@ -197,7 +196,25 @@ class EmotionEngine:
         matched_keywords["crisis"].extend(crisis_matches)
         matched_keywords["suppressed_health"].extend(health_suppressors)
         matched_keywords["suppressed_crisis"].extend(crisis_suppressors)
-        danger_confidence = self._danger_confidence(normalized, crisis_matches or health_matches, crisis_suppressors or health_suppressors)
+        crisis_confidence = self._danger_confidence(
+            normalized,
+            crisis_matches,
+            crisis_suppressors,
+        )
+        health_confidence = self._danger_confidence(
+            normalized,
+            health_matches,
+            health_suppressors,
+        )
+        danger_confidence = (
+            "high"
+            if "high" in {crisis_confidence, health_confidence}
+            else "ambiguous"
+            if "ambiguous" in {crisis_confidence, health_confidence}
+            else "suppressed"
+            if "suppressed" in {crisis_confidence, health_confidence}
+            else "none"
+        )
 
         if crisis_keyword_flag:
             # Keep crisis language out of generic keyword scoring, but still
@@ -211,5 +228,9 @@ class EmotionEngine:
             "health_keyword_flag": health_keyword_flag,
             "crisis_keyword_flag": crisis_keyword_flag,
             "danger_confidence": danger_confidence,
+            "danger_confidence_by_signal": {
+                "crisis": crisis_confidence,
+                "health": health_confidence,
+            },
             "matched_keywords": matched_keywords,
         }

@@ -11,18 +11,24 @@ class LLMService:
     def __init__(self):
         self.provider = settings.llm_provider
 
-    def generate_response(self, user_text: str, context: List[str], system_prompt: str = None) -> str:
+    def generate_response(
+        self,
+        user_text: str,
+        context: List[str],
+        system_prompt: str = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
         system_prompt = system_prompt or self.default_system_prompt()
         context_block = "\n".join(context) if context else ""
 
         try:
             if self.provider == "anthropic":
-                return self._call_anthropic(system_prompt, context_block, user_text)
+                return self._call_anthropic(system_prompt, context_block, user_text, timeout_seconds)
             if self.provider == "openai":
-                return self._call_openai(system_prompt, context_block, user_text)
+                return self._call_openai(system_prompt, context_block, user_text, timeout_seconds)
             if self.provider == "gemini":
-                return self._call_gemini(system_prompt, context_block, user_text)
-            return self._call_local(system_prompt, context_block, user_text)
+                return self._call_gemini(system_prompt, context_block, user_text, timeout_seconds)
+            return self._call_local(system_prompt, context_block, user_text, timeout_seconds)
         except Exception as exc:
             logger.exception("llm_provider_error provider=%s error=%s", self.provider, exc)
             return "I'm sorry, but the AI service is currently unavailable. Please try again later."
@@ -43,6 +49,7 @@ class LLMService:
                     "You are a strict safety triage classifier. "
                     "Return only YES for immediate danger, otherwise NO."
                 ),
+                timeout_seconds=settings.danger_confirmation_timeout_seconds,
             )
         except Exception as exc:
             print(f"[Danger Confirmation Error] {exc}")
@@ -66,10 +73,13 @@ class LLMService:
             "Ask at most one small follow-up question when it would help the user keep talking."
         )
 
-    def _call_anthropic(self, system_prompt, context_block, user_text) -> str:
+    def _call_anthropic(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         import anthropic
 
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key,
+            timeout=timeout_seconds,
+        )
         message = client.messages.create(
             model=settings.anthropic_model,
             max_tokens=500,
@@ -78,10 +88,13 @@ class LLMService:
         )
         return message.content[0].text
 
-    def _call_openai(self, system_prompt, context_block, user_text) -> str:
+    def _call_openai(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         from openai import OpenAI
 
-        client = OpenAI(api_key=settings.openai_api_key)
+        client = OpenAI(
+            api_key=settings.openai_api_key,
+            timeout=timeout_seconds,
+        )
         completion = client.chat.completions.create(
             model=settings.openai_model,
             messages=[
@@ -91,7 +104,7 @@ class LLMService:
         )
         return completion.choices[0].message.content
 
-    def _call_gemini(self, system_prompt, context_block, user_text) -> str:
+    def _call_gemini(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         from google import genai
 
         client = genai.Client(api_key=settings.gemini_api_key)
@@ -100,10 +113,17 @@ class LLMService:
             f"[User profile context]\n{context_block}\n\n"
             f"User:\n{user_text}"
         )
-        response = client.models.generate_content(model=settings.gemini_model, contents=prompt)
+        kwargs = {}
+        if timeout_seconds is not None:
+            kwargs["request_options"] = {"timeout": int(timeout_seconds * 1000)}
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=prompt,
+            **kwargs,
+        )
         return response.text
 
-    def _call_local(self, system_prompt, context_block, user_text) -> str:
+    def _call_local(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         raise NotImplementedError("Local model provider is not implemented.")
 
 

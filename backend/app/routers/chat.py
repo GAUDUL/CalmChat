@@ -27,11 +27,24 @@ def higher_risk(left: str, right: str) -> str:
     return left if RISK_ORDER.get(left, 0) >= RISK_ORDER.get(right, 0) else right
 
 
-def current_safety_guidance(text: str, current_signal: dict) -> dict:
-    matched_keywords = (
-        current_signal.get("matched_keywords", {}).get("crisis", [])
-        + current_signal.get("matched_keywords", {}).get("health", [])
+def _signal_confirmation(text: str, current_signal: dict, signal_kind: str) -> bool:
+    matched_keywords = current_signal.get("matched_keywords", {}).get(signal_kind, [])
+    if not matched_keywords:
+        return False
+
+    confidence = current_signal.get("danger_confidence_by_signal", {}).get(
+        signal_kind,
+        current_signal.get("danger_confidence"),
     )
+    if confidence == "high":
+        return True
+    if confidence != "ambiguous":
+        return False
+
+    return llm_service.confirm_danger_signal(text, matched_keywords) is True
+
+
+def current_safety_guidance(text: str, current_signal: dict) -> dict:
     if not (current_signal["crisis_keyword_flag"] or current_signal["health_keyword_flag"]):
         return {
             "risk_level": "normal",
@@ -40,39 +53,36 @@ def current_safety_guidance(text: str, current_signal: dict) -> dict:
             "crisis_keyword_flag_override": None,
         }
 
-    signal_kind = "crisis" if current_signal["crisis_keyword_flag"] else "health"
-    confirmed = True
-    if current_signal.get("danger_confidence") == "ambiguous":
-        confirmed = llm_service.confirm_danger_signal(text, matched_keywords)
+    crisis_confirmed = (
+        _signal_confirmation(text, current_signal, "crisis")
+        if current_signal["crisis_keyword_flag"]
+        else False
+    )
+    health_confirmed = (
+        _signal_confirmation(text, current_signal, "health")
+        if current_signal["health_keyword_flag"]
+        else False
+    )
 
-    risk_level = "danger" if confirmed is True else "warning"
-    is_danger = risk_level == "danger"
+    risk_level = "danger" if crisis_confirmed or health_confirmed else "warning"
+    actions = []
+    if crisis_confirmed:
+        actions.append("Encourage immediate caregiver or emergency support contact.")
+    elif current_signal["crisis_keyword_flag"]:
+        actions.append("Ask one calm clarification question before escalating.")
 
-    if signal_kind == "crisis":
-        actions = [
-            "Encourage immediate caregiver or emergency support contact."
-            if is_danger
-            else "Ask one calm clarification question before escalating.",
-            "Keep the reply calm, short, and direct.",
-        ]
-        return {
-            "risk_level": risk_level,
-            "feedback_actions": actions,
-            "health_keyword_flag_override": False,
-            "crisis_keyword_flag_override": is_danger,
-        }
+    if health_confirmed:
+        actions.append("Encourage immediate caregiver or medical support contact.")
+    elif current_signal["health_keyword_flag"]:
+        actions.append("Ask one calm clarification question about the symptom severity.")
 
-    actions = [
-        "Encourage immediate caregiver or medical support contact."
-        if is_danger
-        else "Ask one calm clarification question about the symptom severity.",
-        "Keep the reply calm, short, and direct.",
-    ]
+    actions.append("Keep the reply calm, short, and direct.")
+
     return {
         "risk_level": risk_level,
         "feedback_actions": actions,
-        "health_keyword_flag_override": is_danger,
-        "crisis_keyword_flag_override": False,
+        "health_keyword_flag_override": health_confirmed if current_signal["health_keyword_flag"] else None,
+        "crisis_keyword_flag_override": crisis_confirmed if current_signal["crisis_keyword_flag"] else None,
     }
 
 

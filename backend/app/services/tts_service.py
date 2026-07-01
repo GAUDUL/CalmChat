@@ -62,7 +62,17 @@ class TTSService:
             files = {"files": f}
             data = {"name": "family_voice"}
             response = requests.post(url, headers=headers, files=files, data=data)
-        response.raise_for_status()
+            response = requests.post(
+                url,
+                headers=headers,
+                files=files,
+                data=data,
+            )
+
+            print(response.status_code)
+            print(response.text)
+
+            response.raise_for_status()
         return response.json()["voice_id"]
 
 tts_service = TTSService()
