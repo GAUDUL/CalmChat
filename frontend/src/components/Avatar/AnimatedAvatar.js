@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Image, View, Text, StyleSheet } from "react-native";
+import { Animated, Image, View, StyleSheet } from "react-native";
 import { colors, shadow } from "../../theme/theme";
+
+const defaultAvatar = require("../../asset/avartar.png");
 
 /**
  * CalmChat의 AnimatedAvatar(단일 이미지 + CSS 애니메이션)를 RN으로 옮긴 버전.
  *
- * - imageUri를 안 주면(=아바타 디자인 미정 상태) 동그란 placeholder + 이모지로 표시.
- *   나중에 실제 아바타 이미지/캐릭터가 정해지면 imageUri만 넘기면 됨 (로직 변경 불필요).
+ * - 항상 frontend/src/asset/avartar.png 이미지를 아바타로 표시.
  * - state: "idle" | "listening" | "thinking" | "speaking"
  *   idle=breathe(숨쉬기), listening=tilt(좌우 기울임)+glow ring,
  *   thinking=float(위아래 떠다님)+점 3개, speaking=bob(작게 들썩임)
@@ -56,7 +57,10 @@ export function AnimatedAvatar({ imageUri, state = "idle", size = 140 }) {
     return () => loop.stop();
   }, [state]);
 
-  const rotateDeg = rotate.interpolate({ inputRange: [-1, 1], outputRange: ["-4deg", "4deg"] });
+  const rotateDeg = rotate.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ["-4deg", "4deg"],
+  });
 
   return (
     <View style={[styles.wrapper, { width: size + 24, height: size + 24 }]}>
@@ -72,20 +76,20 @@ export function AnimatedAvatar({ imageUri, state = "idle", size = 140 }) {
           shadow.soft,
         ]}
       >
-        {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
-        ) : (
-          // TODO: 아바타 디자인 확정되면 여기를 실제 캐릭터/이미지로 교체
-          <View style={styles.placeholder}>
-            <Text style={{ fontSize: size * 0.4 }}>🙂</Text>
-          </View>
-        )}
+        <Image source={defaultAvatar} style={styles.image} resizeMode="cover" />
       </Animated.View>
 
       {state === "listening" && (
         <View
           pointerEvents="none"
-          style={[styles.glowRing, { width: size + 16, height: size + 16, borderRadius: (size + 16) / 2 }]}
+          style={[
+            styles.glowRing,
+            {
+              width: size + 16,
+              height: size + 16,
+              borderRadius: (size + 16) / 2,
+            },
+          ]}
         />
       )}
 
@@ -109,13 +113,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
   },
   image: { width: "100%", height: "100%" },
-  placeholder: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.secondary,
-  },
   glowRing: {
     position: "absolute",
     borderWidth: 3,
