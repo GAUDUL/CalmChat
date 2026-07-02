@@ -61,7 +61,7 @@ export default function HomeScreen({
           <View style={styles.statusRow}>
             <View style={styles.statusItem}>
               <Text style={styles.statusValue}>
-                {Math.round(metrics?.emotion_score ?? 0)}
+                {metrics?.emotion_score ?? 0}
               </Text>
               <Text style={styles.statusLabel}>
                 Emotion
@@ -72,7 +72,7 @@ export default function HomeScreen({
 
             <View style={styles.statusItem}>
               <Text style={styles.statusValue}>
-                {Math.round(metrics?.energy_score ?? 0)}
+                {metrics?.energy_score ?? 0}
               </Text>
               <Text style={styles.statusLabel}>
                 Energy
