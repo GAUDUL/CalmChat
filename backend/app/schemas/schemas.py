@@ -75,6 +75,10 @@ class ProfileUpdateResponse(BaseModel):
     status: str
     updated_at: datetime
 
+class WeeklyTrendItem(BaseModel):
+    date: str
+    emotion_score: Optional[float] = None
+    energy_score: Optional[float] = None
 
 class MetricsResponse(BaseModel):
     user_id: int
@@ -87,7 +91,7 @@ class MetricsResponse(BaseModel):
     feedback_actions: List[str] = Field(default_factory=list)
     signals: List[Dict[str, Any]] = Field(default_factory=list)
     decision_log: List[Dict[str, Any]] = Field(default_factory=list)
-
+    weekly_trend: List[WeeklyTrendItem] = Field(default_factory=list)
 
 class FamilyVoiceRegisterRequest(BaseModel):
     user_id: int

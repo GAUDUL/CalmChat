@@ -53,13 +53,40 @@ export default function HomeScreen({
         </View>
         
         {/* STATUS CARD */}
-        <CalmCard warm style={styles.heroCard}>
-          <Text style={styles.cardText}>
-            <Text style={styles.cardTextBold}>Status</Text>{"\n"}
-            Emotion: {metrics?.emotion_score ?? "-"}{"\n"}
-            Energy: {metrics?.energy_score ?? "-"}
-            {riskLabel ? `\nRisk level: ${riskLabel}` : ""}
+        <CalmCard warm style={[styles.heroCard, styles.statusCard]}>
+          <Text style={styles.statusTitle}>
+            Today's Status
           </Text>
+
+          <View style={styles.statusRow}>
+            <View style={styles.statusItem}>
+              <Text style={styles.statusValue}>
+                {Math.round(metrics?.emotion_score ?? 0)}
+              </Text>
+              <Text style={styles.statusLabel}>
+                Emotion
+              </Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.statusItem}>
+              <Text style={styles.statusValue}>
+                {Math.round(metrics?.energy_score ?? 0)}
+              </Text>
+              <Text style={styles.statusLabel}>
+                Energy
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.riskBadge}>
+            <Text style={styles.riskBadgeText}>
+              {riskLabel
+                ? `⚠️ ${riskLabel}`
+                : "🟢 Stable"}
+            </Text>
+          </View>
         </CalmCard>
 
         {/* RECENT */}
@@ -126,4 +153,57 @@ const styles = StyleSheet.create({
   fullWidthButton: { width: "100%" },
   buttonIcon: { fontSize: 20 },
   buttonIconGhost: { fontSize: 20 },
+  statusTitle: {
+  fontSize: 20,
+  fontWeight: "700",
+  color: colors.foreground,
+  textAlign: "center",
+  marginBottom: 20,
+  },
+  statusRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+  },
+
+  statusItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+
+  statusValue: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+
+  statusLabel: {
+    marginTop: 6,
+    fontSize: 16,
+    color: colors.mutedForeground,
+  },
+
+  divider: {
+    width: 1,
+    height: 50,
+    backgroundColor: "#E5E7EB",
+  },
+
+  riskBadge: {
+    marginTop: 22,
+    alignSelf: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF80",
+  },
+
+  riskBadgeText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  statusCard: {
+  backgroundColor: "#fbfcf8",
+  }
 });
