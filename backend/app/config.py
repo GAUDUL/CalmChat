@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     rag_time_decay_alpha: float = 0.05   # 최근일수록 중요
     rag_min_score: float = 0.2           # 필터 컷
     rag_max_context: int = 8             # 최종 context 수
+    rag_max_tokens: int = 1200
 
     # LLM provider
     llm_provider: Literal["anthropic", "openai", "gemini", "local"] = "anthropic"

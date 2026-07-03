@@ -104,16 +104,15 @@ class RAGService:
 
         # SQL 최근 대화 강제 포함
         recent_conversations = self._get_recent_conversations( db, user_id, limit=pair_limit,)
+
         # 최근 대화 토큰 수 계산
         recent_tokens = sum(self._estimate_tokens(x) for x in recent_conversations)
-        rag_limit_tokens = max(settings.rag_max_context - recent_tokens, 0)
+        rag_limit_tokens = max(settings.rag_max_tokens - recent_tokens, 0)
+
         # 대화 중복 방지용
         recent_set = {self._hash(x) for x in recent_conversations}
 
-        adaptive_top_k = min(
-            settings.rag_top_k,
-            max(5, rag_limit_tokens // 50)
-        )
+        adaptive_top_k = settings.rag_top_k
 
         # 대화 기반 RAG 검색 (단기 기억)
         conversations = self._query_conversations(user_id, query_text, adaptive_top_k)
@@ -122,6 +121,8 @@ class RAGService:
             doc for doc in conversations
              if self._hash(doc) not in recent_set
         ]
+
+        conversations = conversations[:settings.rag_max_context]
         
         context = []
 
