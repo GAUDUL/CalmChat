@@ -231,13 +231,35 @@ class RAGService:
         """
         사용자 장기 프로필 벡터 검색
         (성격 / 관심사 / 상태 요약)
+
+        주의: 프로필 컬렉션은 유저당 문서가 1개(profile_{user_id})뿐이라,
+        distance 기반 최소 유사도 필터가 없으면 현재 질문과 전혀 무관해도
+        해당 문서가 top-1으로 항상 반환되어 매 턴 컨텍스트에 강제 주입됨
+        conversation 검색과 동일하게 최소 유사도 임계값을 적용해 무관한 턴에는
+        프로필을 아예 넣지 않도록.
         """
         results = self.profile_collection.query(
             query_texts=[query_text],
             n_results=top_k,
             where={"user_id": str(user_id)},
+            include=["documents", "distances"],
         )
-        return results.get("documents", [[]])[0]
+        docs = results.get("documents", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+
+        profile_min_score = getattr(settings, "rag_profile_min_score", settings.rag_min_score)
+
+        filtered = []
+        for i, doc in enumerate(docs):
+            if not doc or len(doc.strip()) < 5:
+                continue
+            actual_distance = distances[i] if i < len(distances) else 1.0
+            similarity_score = max(0.0, 1.0 - actual_distance)
+            if similarity_score < profile_min_score:
+                continue
+            filtered.append(doc)
+
+        return filtered
 
     def _terms(self, text: str) -> Counter:
         """

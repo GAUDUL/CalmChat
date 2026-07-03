@@ -2,12 +2,13 @@ import base64
 import os
 import shutil
 import tempfile
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.db_models import Conversation, FamilyVoice
+from app.models.db_models import CareInterventionState, Conversation, FamilyVoice
 from app.routers.users import require_user_access
 from app.schemas.schemas import ChatRequest, ChatResponse, ConversationResponse, VoiceChatResponse
 from app.services.anomaly_service import RISK_ORDER, anomaly_service
@@ -21,6 +22,9 @@ from app.services.tts_service import tts_service
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 CHAT_HISTORY_LIMIT = 80
+# 같은 risk_level에 대해 케어 가이던스를 재전달하기까지의 최소 간격
+# risk_level이 "올라가는 전이"는 이 쿨다운과 무관하게 항상 즉시 전달
+INTERVENTION_COOLDOWN = timedelta(minutes=180)
 
 
 def higher_risk(left: str, right: str) -> str:
@@ -86,13 +90,55 @@ def current_safety_guidance(text: str, current_signal: dict) -> dict:
     }
 
 
-def build_anomaly_system_prompt(anomaly_result: dict) -> str | None:
+def _get_or_create_intervention_state(db: Session, user_id: int) -> CareInterventionState:
+    state = db.query(CareInterventionState).filter_by(user_id=user_id).first()
+    if state is None:
+        state = CareInterventionState(user_id=user_id, last_risk_level="normal")
+        db.add(state)
+        db.flush()  # commit은 이후 대화 저장 시점에 한 번에
+    return state
+
+
+def _should_deliver_intervention(state: CareInterventionState, risk_level: str) -> bool:
+    """
+    가이던스를 이번 턴에 실제로 전달할지 결정
+    - anomaly_service의 hysteresis는 "판정 결과"만 담당하고
+      "이미 전달했는가"는 여기서 상태로 명시적으로 관리
+    """
+    if risk_level == "danger":
+        return True  # 안전 문제는 쿨다운 없이 항상 전달
+
+    if risk_level == "normal":
+        return False
+
+    previous_level = state.last_risk_level or "normal"
+    if RISK_ORDER.get(risk_level, 0) > RISK_ORDER.get(previous_level, 0):
+        return True  # 위험도가 새로 악화된 전이 시점 -> 항상 전달
+
+    if state.last_intervention_risk_level != risk_level:
+        return True  # 이 레벨로는 아직 한 번도 전달한 적 없음
+
+    if state.last_intervention_at is None:
+        return True
+
+    last_at = state.last_intervention_at
+    if last_at.tzinfo is None:
+        last_at = last_at.replace(tzinfo=timezone.utc)
+
+    return (datetime.now(timezone.utc) - last_at) >= INTERVENTION_COOLDOWN
+
+
+def _update_intervention_state(state: CareInterventionState, risk_level: str, delivered: bool) -> None:
+    state.last_risk_level = risk_level
+    if delivered and risk_level != "normal":
+        state.last_intervention_risk_level = risk_level
+        state.last_intervention_at = datetime.now(timezone.utc)
+
+
+def build_anomaly_system_prompt(anomaly_result: dict, deliver_intervention: bool) -> str | None:
     risk_level = anomaly_result.get("risk_level", "normal")
     if risk_level == "normal":
         return None
-
-    actions = anomaly_result.get("feedback_actions", [])
-    action_block = "\n".join(f"- {action}" for action in actions)
 
     guidance_by_level = {
         "caution": (
@@ -113,6 +159,21 @@ def build_anomaly_system_prompt(anomaly_result: dict) -> str | None:
         ),
     }
 
+    if not deliver_intervention:
+        # 이미 이 위험도에 대해 최근에 케어 액션을 전달했을 경우, 새 제안을 강요하지 않고
+        # 그냥 평소처럼 따뜻하게 대화를 이어가되, 배경으로만 어조에 반영
+        return (
+            f"{llm_service.default_system_prompt()}\n\n"
+            "[Internal care guidance]\n"
+            f"Risk level: {risk_level} (already acknowledged recently)\n"
+            "You already gave supportive guidance for this recently. Do not repeat a specific "
+            "suggestion again. Just respond naturally to whatever the user is currently talking "
+            "about, keeping a warm and attentive tone."
+        )
+
+    actions = anomaly_result.get("feedback_actions", [])
+    action_block = "\n".join(f"- {action}" for action in actions)
+
     return (
         f"{llm_service.default_system_prompt()}\n\n"
         "[Internal care guidance]\n"
@@ -126,6 +187,7 @@ def build_anomaly_system_prompt(anomaly_result: dict) -> str | None:
 def generate_chat_response(user_id: int, text: str, db: Session):
     context = rag_service.get_relevant_context(db, user_id, text)
     packed_context = "\n\n".join(context)
+
     anomaly_result = anomaly_service.detect(db, user_id)
     current_signal = emotion_engine.extract(text)
     current_guidance = current_safety_guidance(text, current_signal)
@@ -133,6 +195,7 @@ def generate_chat_response(user_id: int, text: str, db: Session):
         anomaly_result.get("risk_level", "normal"),
         current_guidance["risk_level"],
     )
+
     if current_guidance["risk_level"] != "normal":
         current_is_at_least_existing = (
             RISK_ORDER[current_guidance["risk_level"]]
@@ -147,7 +210,11 @@ def generate_chat_response(user_id: int, text: str, db: Session):
                 else anomaly_result.get("feedback_actions", [])
             ),
         }
-    system_prompt = build_anomaly_system_prompt(anomaly_result)
+        
+    risk_level = anomaly_result.get("risk_level", "normal")
+    intervention_state = _get_or_create_intervention_state(db, user_id)
+    deliver_intervention = _should_deliver_intervention(intervention_state, risk_level)
+    system_prompt = build_anomaly_system_prompt(anomaly_result, deliver_intervention)
 
     response_text = llm_service.generate_response(
         user_text=text,
@@ -169,6 +236,9 @@ def generate_chat_response(user_id: int, text: str, db: Session):
 
     db.add(user_message)
     db.add(assistant_message)
+    # 이번 턴에 실제로 무엇을 전달했는지 명시적으로 기록 (다음 턴이 텍스트를 추측하지 않도록)
+    _update_intervention_state(intervention_state, risk_level, deliver_intervention)
+    db.add(intervention_state)
     db.commit()
 
     db.refresh(user_message)
@@ -265,17 +335,19 @@ def voice_chat(
         # STT 수행
         stt_result = stt_service.transcribe(tmp_path)
         text = stt_result.get("text", "").strip()
+        corrected_text = llm_service.correct_transcript(text)
 
         if not text:
             raise HTTPException(status_code=400, detail="Could not recognize speech.")
 
         # LLM을 통해 응답 생성
-        response_text, context, safety_overrides = generate_chat_response(user_id, text, db)
+        response_text, context, safety_overrides = generate_chat_response(user_id, corrected_text, db)
+
         # 감정 분석 파이프라인
         background_tasks.add_task(
             run_emotion_pipeline,
             user_id,
-            text,
+            corrected_text,
             safety_overrides["health_keyword_flag_override"],
             safety_overrides["crisis_keyword_flag_override"],
         )
@@ -295,7 +367,7 @@ def voice_chat(
         )
 
         return VoiceChatResponse(
-            text=text,
+            text=corrected_text,
             confidence=stt_result.get("confidence"),
             response_text=response_text,
             used_context=context,

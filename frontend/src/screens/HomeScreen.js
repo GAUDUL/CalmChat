@@ -75,7 +75,7 @@ export default function HomeScreen({
                 {metrics?.energy_score ?? 0}
               </Text>
               <Text style={styles.statusLabel}>
-                Energy
+                Vitality
               </Text>
             </View>
           </View>

@@ -70,7 +70,7 @@ export default function MoodScreen({
             <View style={styles.scoreRow}>
               <CalmCard style={styles.scoreCard}>
                 <Text style={styles.label}>
-                  Emotion Score
+                  Emotional Score
                 </Text>
 
                 <Progress.Circle
@@ -86,7 +86,7 @@ export default function MoodScreen({
 
               <CalmCard style={styles.scoreCard}>
                 <Text style={styles.label}>
-                  Energy Score
+                  Vitality Score
                 </Text>
 
                 <Progress.Circle

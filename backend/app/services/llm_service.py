@@ -3,9 +3,7 @@ import logging
 
 from app.config import settings
 
-
 logger = logging.getLogger(__name__)
-
 
 class LLMService:
     def __init__(self):
@@ -67,10 +65,9 @@ class LLMService:
             "You are a friendly AI companion who offers emotional support to elderly users. "
             "The user may speak Korean or a Korean dialect, but you must always respond in English. "
             "Use simple, short, gentle sentences that are easy to understand. "
-            "Before giving advice, notice the user's feelings and acknowledge them warmly. "
-            "Sound like a caring companion, not a formal assistant. "
-            "If the user seems lonely, worried, tired, or sad, respond with empathy first. "
-            "Ask at most one small follow-up question when it would help the user keep talking."
+            "Acknowledge the user's feelings warmly. "
+            "When appropriate, refer to the user's message and ask one gentle, open-ended question to keep the conversation going. "
+            "Avoid repetitive phrases and avoid unnecessary questions in urgent situations."
         )
 
     def _call_anthropic(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
@@ -125,6 +122,25 @@ class LLMService:
 
     def _call_local(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         raise NotImplementedError("Local model provider is not implemented.")
+    
+    def correct_transcript(self, text: str) -> str:
+        try:
+            corrected = self.generate_response(
+                user_text=f"Transcript:\n{text}",
+                context=[],
+                system_prompt=(
+                    "You correct speech-to-text transcription errors. "
+                    "Fix only obvious recognition mistakes. "
+                    "Do not add information or change the meaning. "
+                    "If unsure, return the original text exactly. "
+                    "Return only the corrected transcript."
+                ),
+            ).strip()
+
+            return corrected or text
+
+        except Exception:
+            return text
 
 
 llm_service = LLMService()

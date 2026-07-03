@@ -71,6 +71,17 @@ export default function App() {
     [user?.id]
   );
 
+  const refreshRecentMessages = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      const messages = await fetchRecentMessages(user.id);
+      setRecentMessages(messages);
+    } catch (err) {
+      console.error("Failed to load recent messages:", err);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -158,6 +169,7 @@ export default function App() {
           metricsLoading={metricsLoading}
           metricsError={metricsError}
           onRefreshMetrics={refreshMetrics}
+          onRefreshRecentMessages={refreshRecentMessages}
         />
       </View>
 

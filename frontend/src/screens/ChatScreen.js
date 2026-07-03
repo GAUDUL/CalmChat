@@ -36,7 +36,7 @@ const BUTTON_LABEL = {
   speaking: "Answering...",
 };
 
-export default function ChatScreen({ user, onRefreshMetrics }) {
+export default function ChatScreen({ user, onRefreshMetrics, onRefreshRecentMessages }) {
   const [avatarState, setAvatarState] = useState("idle");
   const [lastResponse, setLastResponse] = useState("");
   const turnsSinceProfileUpdate = useRef(0);
@@ -122,10 +122,16 @@ export default function ChatScreen({ user, onRefreshMetrics }) {
 
       const result = await sendVoiceChat(user.id, filePath);
       setLastResponse(result.response_text);
+
       await onRefreshMetrics?.({ retries: 3, delayMs: 500 });
+      await onRefreshRecentMessages?.(); // 추가
+
       setAvatarState("speaking");
+
       await playBase64Audio(result.audio_base64, result.audio_content_type);
+      
       maybeUpdateProfile();
+
     } catch (err) {
       console.error("Failed to process voice message:", err);
     } finally {
