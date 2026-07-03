@@ -1,4 +1,6 @@
 import re
+import hashlib
+import tiktoken
 from collections import Counter
 
 import chromadb
@@ -22,6 +24,7 @@ class RAGService:
         self.conversation_collection = self.client.get_or_create_collection(
             settings.vector_db_conversation_collection
         )
+        self.encoder = tiktoken.get_encoding("cl100k_base")
 
     def add_conversation(
         self,
@@ -34,9 +37,19 @@ class RAGService:
         # 너무 짧은 문장은 저장 X
         if len(content) < 5:
             return
-        # assistant의 짧은 응답(인삿말 등)은 노이즈라 제외
+        # assistant 짧은 응답은 저장 X
+        if role == "assistant" and len(content) < 30:
+            return
+        # assistant의 특정 인사말은 저장 X
         if role == "assistant":
-            if any(x in content.lower() for x in ["hello", "hi there", "good to hear"]):
+            if any(
+                x in content.lower()
+                for x in [
+                    "hello",
+                    "hi there",
+                    "good to hear",
+                ]
+            ):
                 return
         
         # ChromaDB에 저장
@@ -52,6 +65,31 @@ class RAGService:
             }]
         )
 
+    # 텍스트 정규화
+    def _normalize(self, text: str) -> str:
+        text = re.sub(r"\[.*?\]", "", text)  # 태그 제거
+        return re.sub(r"\s+", " ", text.strip().lower())
+    # 텍스트 해시값 생성
+    def _hash(self, text: str) -> str:
+        return hashlib.md5(text.encode()).hexdigest()
+    # 텐스트 토큰 수 추정 및 반환
+    def _estimate_tokens(self, text: str) -> int:
+        return len(self.encoder.encode(text))
+    # 토큰 제한에 맞춰 패킹
+    def _pack_by_token_limit(self, texts, limit):
+        result = []
+        used = 0
+
+        for t in texts:
+            tokens = self._estimate_tokens(t)
+            if used + tokens > limit:
+                break
+            result.append(t)
+            used += tokens
+
+        return result
+
+    # 사용자 관련 컨텍스트 검색
     def get_relevant_context(
         self,
         db: Session,
@@ -59,33 +97,51 @@ class RAGService:
         query_text: str,
         top_k: int | None = None,
     ):
-        """
-        LLM에게 넘길 "컨텍스트 묶음" 생성
-
-        구성:
-        1) 사용자 프로필 (장기 기억)
-        2) 최근 관련 대화 (단기 기억)
-        """
-        top_k = top_k or settings.rag_top_k
+        pair_limit = 4
 
         # 프로필(장기 기억) 가져오기
         profile = self._query_profile_documents(user_id, query_text, 1)
 
-        # 대화 기반 RAG 검색 (단기 기억)
-        conversations = self._query_conversations(user_id, query_text, top_k)
+        # SQL 최근 대화 강제 포함
+        recent_conversations = self._get_recent_conversations( db, user_id, limit=pair_limit,)
+        # 최근 대화 토큰 수 계산
+        recent_tokens = sum(self._estimate_tokens(x) for x in recent_conversations)
+        rag_limit_tokens = max(settings.rag_max_context - recent_tokens, 0)
+        # 대화 중복 방지용
+        recent_set = {self._hash(x) for x in recent_conversations}
 
+        adaptive_top_k = min(
+            settings.rag_top_k,
+            max(5, rag_limit_tokens // 50)
+        )
+
+        # 대화 기반 RAG 검색 (단기 기억)
+        conversations = self._query_conversations(user_id, query_text, adaptive_top_k)
+        # 최근 대화 중복 제외
+        conversations = [
+            doc for doc in conversations
+             if self._hash(doc) not in recent_set
+        ]
+        
         context = []
 
         if profile:
             context.append("[PROFILE]")
             context.append(profile[0])
 
+        if recent_conversations:
+            context.append("[RECENT_MEMORY]")
+            context.extend(recent_conversations)
+
         if conversations:
-            context.append("[MEMORY]")
-            context.extend(conversations)
+            context.append("[RELATED_MEMORY]")
+            context.extend(
+                self._pack_by_token_limit(conversations, rag_limit_tokens)
+            )
 
         return context
     
+    # 관련성 높은 대화 검색 (유사도, 시간 경과, 역할 가중치 적용)
     def _query_conversations(self, user_id: int, query_text: str, top_k: int):
         
         results = self.conversation_collection.query(
@@ -94,7 +150,7 @@ class RAGService:
             where={"user_id": str(user_id)},
             include=["documents", "metadatas", "distances"] # 거리 정보 포함
         )
-
+        # 문서, 메타데이터, 거리 정보 추출
         docs = results.get("documents", [[]])[0]
         metas = results.get("metadatas", [[]])[0]
         distances = results.get("distances", [[]])[0]
@@ -102,35 +158,32 @@ class RAGService:
         scored_items = []
 
         for i, doc in enumerate(docs):
+            # 너무 짧은 문장 제외
             if not doc or len(doc.strip()) < 5:
-                continue
-
-            if len(doc.strip()) < 10:
                 continue
 
             meta = metas[i] if i < len(metas) else {}
 
-            # 실제 거리를 기반으로 한 유사도 점수 (0~1 사이로 정규화 필요)
+            # 실제 거리를 기반으로 한 유사도 점수 (0~1 사이로 정규화)
             # ChromaDB의 distance는 낮을수록 유사도가 높으므로, 1에서 빼서 유사도 점수로 변환
             actual_distance = distances[i] if i < len(distances) else 1.0 # 기본값 설정
-            similarity_score = max(0, 1.0 - actual_distance)
-
+            similarity_score = max(0.0, 1.0 - actual_distance)
+            
             # 설정된 최소 점수 미달 시 스킵
             if similarity_score < settings.rag_min_score:
                 continue
 
             # time decay
+            # 시간 경과에 따른 점수 계산
             created_at = meta.get("created_at")
             time_score = self._time_decay_score_from_meta(created_at)
 
-            # role weight (중요: user > assistant)
+            # role weight (중요도: user > assistant)
+            # 역할에 따른 가중치 부여
             role = meta.get("role", "")
             role_weight = 1.2 if role == "user" else 0.8
 
-            # length penalty (너무 짧은 답변 제거 효과)
-            length_weight = min(len(doc) / 50, 1.0)
-
-            # final score
+            # final score (유사도 60%, 시간 30%, 역할 10% 가중치)
             final_score = (
                 0.6 * similarity_score +
                 0.3 * time_score +
@@ -138,11 +191,42 @@ class RAGService:
             )
 
             scored_items.append((final_score, doc))
-
+        # 최종 점수 기준 내림차순 정렬
         scored_items.sort(key=lambda x: x[0], reverse=True)
 
         return [doc for _, doc in scored_items[:top_k]]
+    
+    # DB 에서 최근 대화 기록 가져옴
+    # 대화 쌍 형태 구성 후 반환
+    def _get_recent_conversations(self, db, user_id, limit=2):
+        records = (
+            db.query(Conversation)
+            .filter(Conversation.user_id == user_id)
+            .order_by(Conversation.created_at.desc())
+            .limit(limit * 2) # 대화 쌍 구성할 수 있도록
+            .all()
+        )
 
+        records = records[::-1] # 오래된 것 -> 최신 순으로
+
+        pairs = []
+        i = 0
+
+        while i < len(records):
+            if records[i].role == "user":
+                chunk = records[i:i+2]
+                formatted = "\n".join(
+                    f"[{r.role.upper()}] {r.content}"
+                    for r in chunk
+                )
+                pairs.append(formatted)
+                i += len(chunk)
+            else:
+                i += 1
+
+        return pairs
+
+    # 사용자 프로필 문서
     def _query_profile_documents(self, user_id: int, query_text: str, top_k: int) -> list[str]:
         """
         사용자 장기 프로필 벡터 검색
@@ -210,7 +294,7 @@ class RAGService:
 
         now = datetime.now(timezone.utc)
         age_hours = (now - created_at).total_seconds() / 3600
-        
+        # 지수 감쇠 함수 사용 -> 시간 감쇠 점수 계산
         return math.exp(-settings.rag_time_decay_alpha * (age_hours / 24))
 
 
