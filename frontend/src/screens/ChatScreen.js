@@ -20,7 +20,23 @@ const PROFILE_UPDATE_TURN_INTERVAL = 4;
 
 Sound.setCategory("Playback");
 
-export default function ChatScreen({ user, onRefreshMetrics }) {
+// 상태별 안내 문구 (아바타 위 제목) - 어르신께 지금 뭘 하고 있는지 바로 알려주는 용도
+// const STATUS_TITLE = {
+//   idle: "Tap the microphone to start talking",
+//   listening: "I'm listening",
+//   thinking: "I'm thinking about my response",
+//   speaking: "I'm responding",
+// };
+
+// 상태별 버튼 문구
+const BUTTON_LABEL = {
+  idle: "Tap to talk",
+  listening: "Listening... tap to stop",
+  thinking: "Thinking..",
+  speaking: "Answering...",
+};
+
+export default function ChatScreen({ user, onRefreshMetrics, onRefreshRecentMessages }) {
   const [avatarState, setAvatarState] = useState("idle");
   const [lastResponse, setLastResponse] = useState("");
   const turnsSinceProfileUpdate = useRef(0);
@@ -106,10 +122,16 @@ export default function ChatScreen({ user, onRefreshMetrics }) {
 
       const result = await sendVoiceChat(user.id, filePath);
       setLastResponse(result.response_text);
+
       await onRefreshMetrics?.({ retries: 3, delayMs: 500 });
+      await onRefreshRecentMessages?.(); // 추가
+
       setAvatarState("speaking");
+
       await playBase64Audio(result.audio_base64, result.audio_content_type);
+      
       maybeUpdateProfile();
+
     } catch (err) {
       console.error("Failed to process voice message:", err);
     } finally {
@@ -117,21 +139,12 @@ export default function ChatScreen({ user, onRefreshMetrics }) {
     }
   };
 
-  const buttonLabel =
-    avatarState === "listening"
-      ? "Listening... tap to stop"
-      : avatarState === "thinking"
-      ? "Thinking..."
-      : avatarState === "speaking"
-      ? "Answering..."
-      : "Tap to talk";
-
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <Text style={styles.title}>Chat</Text>
 
-        <AnimatedAvatar state={avatarState} size={160} />
+        <AnimatedAvatar state={avatarState} size={200} />
 
         <CalmCard style={styles.responseCard}>
           <Text style={styles.responseText}>
@@ -140,7 +153,7 @@ export default function ChatScreen({ user, onRefreshMetrics }) {
         </CalmCard>
 
         <CalmButton
-          title={buttonLabel}
+          title={BUTTON_LABEL[avatarState]}
           icon={<Text style={styles.micIcon}>🎤</Text>}
           variant={avatarState === "listening" ? "accent" : "primary"}
           disabled={isBusy || !user?.id}
@@ -160,23 +173,24 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { padding: 20, alignItems: "center", flex: 1 },
   title: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "700",
     color: colors.foreground,
     marginBottom: 16,
+    textAlign: "center",
   },
   responseCard: {
     width: "100%",
-    marginTop: 24,
-    minHeight: 90,
+    marginTop: 14,
+    minHeight: 100,
     justifyContent: "center",
   },
   responseText: {
-    fontSize: 17,
-    lineHeight: 24,
+    fontSize: 20,
+    lineHeight: 32,
     color: colors.foreground,
     textAlign: "center",
   },
-  micButton: { width: "100%", marginTop: 28 },
-  micIcon: { fontSize: 20 },
+  micButton: { width: "100%", marginTop: 28, minHeight: 72 },
+  micIcon: { fontSize: 26 },
 });

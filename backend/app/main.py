@@ -4,7 +4,7 @@ from sqlalchemy import inspect, text
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import chat, metrics, profile, stt, tts, users
+from app.routers import chat, metrics, profile, stt, tts, users, home
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +24,7 @@ app.include_router(tts.router)
 app.include_router(profile.router)
 app.include_router(metrics.router)
 app.include_router(users.router)
+app.include_router(home.router)
 
 
 @app.get("/health")

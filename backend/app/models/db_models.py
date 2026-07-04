@@ -23,6 +23,7 @@ class User(Base):
     metrics = relationship("MetricRecord", back_populates="user")
     profile = relationship("ProfileDocument", uselist=False, back_populates="user")
     family_voices = relationship("FamilyVoice", back_populates="user")
+    care_intervention_state = relationship("CareInterventionState", uselist=False, back_populates="user")
 
 
 class Conversation(Base):
@@ -79,3 +80,24 @@ class FamilyVoice(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="family_voices")
+
+
+class CareInterventionState(Base):
+
+    __tablename__ = "care_intervention_states"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+
+    # risk_level anomaly_service returned on the previous turn, used to detect
+    # escalation (a rise in risk_level always triggers fresh guidance).
+    last_risk_level = Column(String(10), nullable=False, default="normal")
+
+    # risk_level for which guidance was actually delivered last, and when.
+    # Used for the cooldown check when the risk_level is unchanged.
+    last_intervention_risk_level = Column(String(10), nullable=True)
+    last_intervention_at = Column(DateTime(timezone=True), nullable=True)
+
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    user = relationship("User", back_populates="care_intervention_state")

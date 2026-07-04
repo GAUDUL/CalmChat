@@ -95,20 +95,36 @@ export async function setFamilyVoiceEnabled(userId, enabled) {
   return data;
 }
 
-export async function uploadFamilyVoice(userId, familyMemberName, audioUri) {
+export async function uploadFamilyVoice(
+  userId,
+  familyMemberName,
+  audioFile
+) {
   const formData = new FormData();
+
   formData.append("user_id", String(userId));
   formData.append("family_member_name", familyMemberName);
+
   formData.append("audio", {
-    uri: Platform.OS === "android" ? audioUri : `file://${audioUri}`,
-    name: "family_voice.wav",
-    type: "audio/wav",
+    uri:
+      Platform.OS === "android"
+        ? audioFile.uri
+        : audioFile.uri.replace("file://", ""),
+    name: audioFile.name,
+    type: audioFile.type,
   });
 
-  const { data } = await api.post("/tts/family/upload", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-    timeout: 60000,
-  });
+  const { data } = await api.post(
+    "/tts/family/upload",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      timeout: 60000,
+    }
+  );
+
   return data;
 }
 
@@ -119,6 +135,16 @@ export async function updateProfile(userId) {
 
 export async function fetchMetrics(userId) {
   const { data } = await api.get(`/metrics/${userId}`);
+  return data;
+}
+
+export async function fetchRecentMessages(userId) {
+  const { data } = await api.get("/home/recent-messages", {
+    params: {
+      user_id: userId,
+    },
+  });
+
   return data;
 }
 

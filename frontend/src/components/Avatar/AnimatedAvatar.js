@@ -1,20 +1,29 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Image, View, Text, StyleSheet } from "react-native";
+import { Animated, Image, View, StyleSheet } from "react-native";
 import { colors, shadow } from "../../theme/theme";
+
+const AVATAR_IMAGES = {
+  idle: require("../../asset/avatar_idle.png"),
+  listening: require("../../asset/avatar_idle.png"),
+  thinking: require("../../asset/avatar_thinking.png"),
+  speaking: require("../../asset/avatar_speaking.png"),
+};
 
 /**
  * CalmChat의 AnimatedAvatar(단일 이미지 + CSS 애니메이션)를 RN으로 옮긴 버전.
  *
- * - imageUri를 안 주면(=아바타 디자인 미정 상태) 동그란 placeholder + 이모지로 표시.
- *   나중에 실제 아바타 이미지/캐릭터가 정해지면 imageUri만 넘기면 됨 (로직 변경 불필요).
  * - state: "idle" | "listening" | "thinking" | "speaking"
  *   idle=breathe(숨쉬기), listening=tilt(좌우 기울임)+glow ring,
  *   thinking=float(위아래 떠다님)+점 3개, speaking=bob(작게 들썩임)
+ * - state에 따라 표시되는 이미지 자체도 AVATAR_IMAGES 매핑에 맞춰 바뀝니다.
  */
-export function AnimatedAvatar({ imageUri, state = "idle", size = 140 }) {
+export function AnimatedAvatar({ state = "idle", size = 140 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const translateY = useRef(new Animated.Value(0)).current;
   const rotate = useRef(new Animated.Value(0)).current;
+
+  const currentImage = AVATAR_IMAGES[state] || AVATAR_IMAGES.idle;
+  const circleSize = size + 20;
 
   useEffect(() => {
     scale.setValue(1);
@@ -56,36 +65,47 @@ export function AnimatedAvatar({ imageUri, state = "idle", size = 140 }) {
     return () => loop.stop();
   }, [state]);
 
-  const rotateDeg = rotate.interpolate({ inputRange: [-1, 1], outputRange: ["-4deg", "4deg"] });
+  const rotateDeg = rotate.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ["-4deg", "4deg"],
+  });
 
   return (
-    <View style={[styles.wrapper, { width: size + 24, height: size + 24 }]}>
+    <View style={[styles.wrapper, { width: circleSize + 24, height: circleSize + 24, }]}>
       <Animated.View
         style={[
           styles.circle,
           {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
+            width: circleSize,
+            height: circleSize,
+            borderRadius: circleSize / 2,
             transform: [{ scale }, { translateY }, { rotate: rotateDeg }],
           },
           shadow.soft,
         ]}
       >
-        {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
-        ) : (
-          // TODO: 아바타 디자인 확정되면 여기를 실제 캐릭터/이미지로 교체
-          <View style={styles.placeholder}>
-            <Text style={{ fontSize: size * 0.4 }}>🙂</Text>
-          </View>
-        )}
+        <Image
+          source={currentImage}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+          }}
+          resizeMode="cover"
+        />
       </Animated.View>
 
       {state === "listening" && (
         <View
           pointerEvents="none"
-          style={[styles.glowRing, { width: size + 16, height: size + 16, borderRadius: (size + 16) / 2 }]}
+          style={[
+            styles.glowRing,
+            {
+              width: circleSize + 16,
+              height: circleSize + 16,
+              borderRadius: (circleSize + 16) / 2,
+            },
+          ]}
         />
       )}
 
@@ -108,13 +128,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.secondary,
   },
-  image: { width: "100%", height: "100%" },
-  placeholder: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.secondary,
+  image: {
+    resizeMode: "cover",
   },
   glowRing: {
     position: "absolute",

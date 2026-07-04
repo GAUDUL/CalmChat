@@ -10,7 +10,7 @@ import {
   Platform,
 } from "react-native";
 // Updated import to the new stable package
-import { pick, isCancel, types } from "@react-native-documents/picker";
+import { pick, types } from "@react-native-documents/picker";
 
 import { CalmCard } from "../components/ui/CalmCard";
 import { CalmButton } from "../components/ui/CalmButton";
@@ -99,19 +99,19 @@ export default function ProfileScreen({ user, onUserChange }) {
         "Family voice has been registered successfully."
       );
     } catch (err) {
-      if (isCancel(err)) {
+      console.error("Family voice upload failed:", err);
+
+      if (err?.code === "DOCUMENT_PICKER_CANCELED") {
         console.log("User cancelled the picker");
         return;
       }
-
-      console.error("Family voice upload failed:", err);
 
       Alert.alert(
         "Error",
         err?.response?.data?.detail ??
           "Failed to upload family voice. Please check the file format."
       );
-    } finally {
+    }finally {
       setIsUploading(false);
     }
   };

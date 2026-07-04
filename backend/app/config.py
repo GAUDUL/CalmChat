@@ -25,9 +25,15 @@ class Settings(BaseSettings):
 
     # Vector DB / profile retrieval
     vector_db_path: str = "./data/chroma_db"
-    vector_db_collection: str = "user_profiles"
+    vector_db_profile_collection: str = "user_profiles"
+    vector_db_conversation_collection: str = "user_conversations"
     rag_update_interval_minutes: int = 60
     rag_top_k: int = 5
+
+    rag_time_decay_alpha: float = 0.05   # 최근일수록 중요
+    rag_min_score: float = 0.2           # 필터 컷
+    rag_max_context: int = 8             # 최종 context 수
+    rag_max_tokens: int = 1200
 
     # LLM provider
     llm_provider: Literal["anthropic", "openai", "gemini", "local"] = "anthropic"
@@ -37,6 +43,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    danger_confirmation_timeout_seconds: float = 4.0
 
     # STT
     whisper_model_size: str = "base"
@@ -51,6 +58,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()
