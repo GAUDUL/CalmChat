@@ -38,3 +38,4 @@ gradio
 tqdm
 tensorboard==2.16.2
 loguru==0.7.2
+huggingface_hub

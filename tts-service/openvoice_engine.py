@@ -9,12 +9,48 @@ import torch
 from melo.api import TTS
 from openvoice import se_extractor
 from openvoice.api import ToneColorConverter
+from huggingface_hub import snapshot_download
+import os
 
 CHECKPOINT_DIR = os.getenv("OPENVOICE_CHECKPOINT_DIR", "/app/checkpoints_v2")
 EMBEDDING_DIR = os.getenv("EMBEDDING_DIR", "/app/uploads/family_voices/embeddings")
 TMP_DIR = "/tmp/tts_work"
 
 DEVICE = "cpu"
+
+CHECKPOINT_DIR = os.getenv(
+    "OPENVOICE_CHECKPOINT_DIR",
+    "/app/checkpoints_v2",
+)
+
+def ensure_openvoice_checkpoints():
+    required_files = [
+        os.path.join(
+            CHECKPOINT_DIR,
+            "converter",
+            "checkpoint.pth",
+        ),
+        os.path.join(
+            CHECKPOINT_DIR,
+            "converter",
+            "config.json",
+        ),
+        os.path.join(
+            CHECKPOINT_DIR,
+            "base_speakers",
+            "ses",
+            "kr.pth",
+        ),
+    ]
+
+    if all(os.path.exists(f) for f in required_files):
+        return
+
+    snapshot_download(
+        repo_id="myshell-ai/OpenVoiceV2",
+        local_dir=CHECKPOINT_DIR,
+        local_dir_use_symlinks=False,
+    )
 
 class OpenVoiceEngine:
     def __init__(self):
@@ -27,11 +63,11 @@ class OpenVoiceEngine:
         )
         self.tone_color_converter.load_ckpt(f"{converter_dir}/checkpoint.pth")
 
-        # 한국어 base speaker (MeloTTS)
+        # base speaker (MeloTTS)
         self.base_model = TTS(language="EN", device=DEVICE)
         self.speaker_ids = self.base_model.hps.data.spk2id
 
-        # 한국어 base speaker의 기준 임베딩 (OpenVoice 체크포인트에 포함)
+        # base speaker의 기준 임베딩 (OpenVoice 체크포인트에 포함)
         self.source_se = torch.load(
             f"{CHECKPOINT_DIR}/base_speakers/ses/kr.pth", map_location=DEVICE
         )
@@ -74,5 +110,5 @@ class OpenVoiceEngine:
                 if os.path.exists(p):
                     os.remove(p)
 
-
+ensure_openvoice_checkpoints()
 engine = OpenVoiceEngine()
