@@ -13,8 +13,11 @@ services:
       - ./backend:/app   # 개발용 (hot reload 대신 코드 반영)
     env_file:
       - ./backend/.env
+    environment:
+      - TTS_SERVICE_URL=http://tts:8000
     depends_on:
       - mysql
+      - tts
     restart: unless-stopped
 
   # --------------------
@@ -46,6 +49,35 @@ services:
     volumes:
       - chroma_data:/chroma/chroma
     restart: unless-stopped
+
+  # --------------------
+  # TTS Service (OpenVoice V2)
+  # --------------------
+  tts:
+    build: ./tts-service
+    container_name: calm-tts
+    ports:
+      - "8002:8000"   # 디버깅/직접 호출용, 필요 없으면 제거 가능
+    environment:
+      - HF_HUB_DISABLE_TELEMETRY=1
+      - TRANSFORMERS_VERBOSITY=error
+      - HF_HUB_DISABLE_PROGRESS_BARS=1
+    volumes:
+      # backend가 ./backend:/app 로 마운트되므로,
+      # 실제 family_voices 파일은 호스트의 ./backend/uploads/family_voices 에 생깁니다.
+      # tts 컨테이너도 같은 호스트 경로를 같은 컨테이너 내부 경로로 마운트해야
+      # backend가 저장한 원본 wav를 tts 컨테이너에서 그대로 읽을 수 있습니다.
+      - ./backend/uploads/family_voices:/app/uploads/family_voices
+      - ./tts-service/checkpoints_v2:/app/checkpoints_v2:ro
+    restart: unless-stopped
+    # GPU 서버라면 주석 해제
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
 volumes:
   mysql_data:

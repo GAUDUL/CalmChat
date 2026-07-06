@@ -352,18 +352,18 @@ def voice_chat(
             safety_overrides["crisis_keyword_flag_override"],
         )
 
-        voice_model_id = None
+        voice_embedding_path  = None
+
         # 가족 음성 활성화 경우
-        # 해당 사용자의 가족 음성 모델 ID 조회
         if user.family_voice_enabled:
             family_voice = db.query(FamilyVoice).filter(FamilyVoice.user_id == user_id).first()
-            voice_model_id = family_voice.voice_id if family_voice else None
+            voice_embedding_path = family_voice.embedding_path if family_voice else None
 
         # TTS 수행
         audio_bytes = tts_service.synthesize(
             text=response_text,
             use_family_voice=user.family_voice_enabled,
-            voice_model_id=voice_model_id,
+            voice_embedding_path=voice_embedding_path ,
         )
 
         return VoiceChatResponse(
