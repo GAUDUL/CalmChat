@@ -5,3 +5,11 @@ __pycache__/
 kote_finetuned_45/
 output/
 .DS_Store
+
+# 로컬 전용 - 커밋 금지
+.env
+backend/.env
+.idea/
+.vscode/
+backend/data/
+notebooks/018.감성대화/
