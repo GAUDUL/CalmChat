@@ -1,110 +1,70 @@
+"""
+app/services/emotion/engine.py
+
+[교체 이력]
+기존 사전 가중치(키워드 매칭) 방식의 감정/에너지 점수화를 KOTE(KcELECTRA)
++ Gemini 보조판단(죄책감/후회) + VAD 변환으로 교체.
+
+크라이시스/헬스 키워드 탐지(안전 트리거 레이어)는 SafetyKeywordDetector로
+로직 변경 없이 그대로 분리해 재사용한다 (safety_keywords.py).
+
+processor.py의 호출 인터페이스(extract(text) -> dict)는 완전히 동일하게
+유지하여 processor.py는 수정하지 않는다.
+
+[유지해야 하는 대칭 관계 - 중요]
+원본 engine.py는 crisis_keyword_flag가 True일 때 emotion_delta -= 8,
+energy_delta -= 4를 적용했고, processor.py는 외부에서 crisis_keyword_flag_override
+가 False로 확인된 경우 이 -8/-4를 정확히 상쇄하는 +8/+4를 더한다
+(`if delta["crisis_keyword_flag"] and crisis_keyword_flag_override is False: ...`).
+이 대칭이 깨지면 override 로직이 오작동하므로, 아래에서도 동일하게 -8/-4를 적용한다.
+"""
+
 import re
+import logging
 
-from .model_service import ModelService
-from .rules import CRISIS_CONTEXT_SUPPRESS_RULES, CRISIS_KEYWORD_RULES, HEALTH_KEYWORD_RULES
+from .kote_classifier import kote_classifier
+from .vad_scoring import compute_vad_deltas
+from .safety_keywords import safety_keyword_detector
 
-# Terms that push confidence straight to "high" regardless of the LLM
-# confirmation step, because they're unambiguous on their own.
-_DIRECT_HIGH_CONFIDENCE_TERMS = (
-    "죽고",
-    "죽고싶",
-    "자살",
-    "자해",
-    "suicide",
-    "kill myself",
-    "end my life",
-    "chest pain",
-    "short of breath",
-    "hard to breathe",
-    "119",
-    "가슴 통증",
-    "호흡 곤란",
-    "숨쉬기 힘",
-    "숨이 차",
-)
+logger = logging.getLogger(__name__)
 
-# Model output is combined into a single 0-100 "vitality-compatible" scale so
-# anomaly_service's existing thresholds/z-score baselines keep working without
-# needing to be re-tuned for a totally different range.
-_EMOTION_SCORE_MIDPOINT = 50
-_EMOTION_SCORE_SPAN = 50
+# 원본 engine.py와 동일한 crisis 페널티 (processor.py의 override 상쇄 로직과 대칭 유지)
+CRISIS_EMOTION_PENALTY = -8
+CRISIS_ENERGY_PENALTY = -4
 
 
 class EmotionEngine:
-    NEGATION_WINDOW = 8
-
-    def __init__(self, model_service: ModelService | None = None):
-        self._model_service = model_service or ModelService()
-
-    # ---- rule-based safety signals (independent of the emotion model) ----
-    def _match_keywords(self, text: str, keyword_set) -> list[str]:
-        return [kw for kw in keyword_set if kw in text]
-
-    def _match_suppressors(self, text: str) -> list[str]:
-        return [kw for kw in CRISIS_CONTEXT_SUPPRESS_RULES if kw in text]
-
-    def _danger_confidence(self, text: str, matched_keywords: list[str], matched_suppressors: list[str]) -> str:
-        if not matched_keywords:
-            return "none"
-        if matched_suppressors:
-            return "suppressed"
-
-        if any(term in keyword for keyword in matched_keywords for term in _DIRECT_HIGH_CONFIDENCE_TERMS):
-            return "high"
-        if re.search(r"(나|내가|myself|me).{0,12}(해치|hurt|죽|die)", text):
-            return "high"
-        return "ambiguous"
-
-    def _safety_signal(self, text: str, matched_suppressors: list[str], signal_kind: str, keyword_set) -> tuple[bool, list[str], str]:
-        matched = self._match_keywords(text, keyword_set)
-        confidence = self._danger_confidence(text, matched, matched_suppressors) if matched else "none"
-        return bool(matched), matched, confidence
-
-    # ---- model-based emotion scoring ----
-
-    def _to_emotion_score(self, positive_score: float, negative_score: float) -> float:
-        net = positive_score - negative_score  # roughly -1..1
-        score = _EMOTION_SCORE_MIDPOINT + net * _EMOTION_SCORE_SPAN
-        return max(0.0, min(100.0, score))
-
     def extract(self, text: str) -> dict:
-        model_result = self._model_service.predict(text)
+        # 원본 engine.py와 동일한 정규화 (안전 레이어 키워드 매칭에 사용)
+        normalized = re.sub(r"\s+", " ", text.lower()).strip()
 
-        matched_suppressors = self._match_suppressors(text)
+        # 1. 안전 트리거 레이어 (기존 rules.py 기반 로직 그대로, 변경 없음)
+        safety_result = safety_keyword_detector.detect(normalized)
 
-        crisis_flag, crisis_matched, crisis_confidence = self._safety_signal(
-            text, matched_suppressors, "crisis", CRISIS_KEYWORD_RULES
-        )
-        health_flag, health_matched, health_confidence = self._safety_signal(
-            text, matched_suppressors, "health", HEALTH_KEYWORD_RULES
-        )
+        # 2. KOTE 기반 감정 분류 (44라벨 -> 8클러스터 max-pooling)
+        #    + 자기지향_부정(죄책감/후회) 후보인 경우 Gemini 보조판단 자동 트리거
+        #    (원문 text 사용 - KOTE 토크나이저는 소문자/공백정규화에 의존하지 않음)
+        kote_result = kote_classifier.analyze(text)
 
-        # Fallback single confidence value, used by callers that don't care
-        # which specific signal (crisis vs health) it came from.
-        overall_confidence = "none"
-        if crisis_flag or health_flag:
-            overall_confidence = crisis_confidence if crisis_flag else health_confidence
+        # 3. VAD 변환 (점수화) - 클러스터 확률 -> emotion_delta/energy_delta
+        emotion_delta, energy_delta = compute_vad_deltas(kote_result["cluster_probs"])
+
+        # 4. crisis 페널티 적용 (원본과 동일한 -8/-4, processor.py 상쇄 로직과 대칭 유지)
+        if safety_result["crisis_keyword_flag"]:
+            emotion_delta += CRISIS_EMOTION_PENALTY
+            energy_delta += CRISIS_ENERGY_PENALTY
 
         return {
-            # 모델 기반 scoring
-            "dominant": model_result["dominant"],  # e.g. "슬픔"
-            "intensity": model_result["intensity"],  # e.g. 0.792
-            "positive_score": model_result["positive_score"],
-            "negative_score": model_result["negative_score"],
-            "emotions": model_result["emotions"],
-            "emotion_score": self._to_emotion_score(
-                model_result["positive_score"], model_result["negative_score"]
-            ),
-            # rule 기반 위험 탐지
-            "crisis_keyword_flag": crisis_flag,
-            "health_keyword_flag": health_flag,
-            "matched_keywords": {
-                "crisis": crisis_matched,
-                "health": health_matched,
-            },
-            "danger_confidence": overall_confidence,
-            "danger_confidence_by_signal": {
-                "crisis": crisis_confidence,
-                "health": health_confidence,
-            },
+            "emotion_delta": emotion_delta,
+            "energy_delta": energy_delta,
+            "health_keyword_flag": safety_result["health_keyword_flag"],
+            "crisis_keyword_flag": safety_result["crisis_keyword_flag"],
+            "danger_confidence": safety_result["danger_confidence"],
+            "danger_confidence_by_signal": safety_result["danger_confidence_by_signal"],
+            "matched_keywords": safety_result["matched_keywords"],
+            # 아래는 processor.py의 기존 로깅에서는 쓰이지 않지만,
+            # 추후 디버깅/캘리브레이션용으로 필요하면 활용 가능하도록 포함해둠.
+            "cluster_probs": kote_result["cluster_probs"],
+            "guilt_regret_llm_checked": kote_result["guilt_regret_llm_checked"],
+            "guilt_regret_llm_result": kote_result["guilt_regret_llm_result"],
         }
