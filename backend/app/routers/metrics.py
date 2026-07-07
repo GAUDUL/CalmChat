@@ -12,7 +12,6 @@ from app.services.anomaly_service import anomaly_service
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
 DEFAULT_EMOTION_SCORE = 50
-DEFAULT_ENERGY_SCORE = 50
 seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
 
@@ -30,6 +29,7 @@ def get_metrics(
         .order_by(MetricRecord.recorded_at.desc())
         .first()
     )
+    
     anomaly_result = anomaly_service.detect(db, user_id)
 
     records = (
@@ -50,7 +50,6 @@ def get_metrics(
         daily[day].append(
             {
                 "emotion": r.emotion_score,
-                "energy": r.energy_score,
             }
         )
 
@@ -63,36 +62,22 @@ def get_metrics(
             if v["emotion"] is not None
         ]
 
-        energy_values = [
-            v["energy"]
-            for v in values
-            if v["energy"] is not None
-        ]
-
         emotion_avg = (
             round(sum(emotion_values) / len(emotion_values), 1)
             if emotion_values
             else DEFAULT_EMOTION_SCORE
         )
 
-        energy_avg = (
-            round(sum(energy_values) / len(energy_values), 1)
-            if energy_values
-            else DEFAULT_ENERGY_SCORE
-        )
-
         weekly_trend.append(
             {
                 "date": day.isoformat(),
                 "emotion_score": emotion_avg,
-                "energy_score": energy_avg,
             }
         )
 
     return MetricsResponse(
         user_id=user_id,
         emotion_score=latest.emotion_score if latest else DEFAULT_EMOTION_SCORE,
-        energy_score=latest.energy_score if latest else DEFAULT_ENERGY_SCORE,
         anomaly_detected=anomaly_result["anomaly_detected"],
         recommended_solution=anomaly_result["recommended_solution"],
         risk_level=anomaly_result["risk_level"],

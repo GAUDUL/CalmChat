@@ -67,17 +67,6 @@ export default function HomeScreen({
                 Emotion
               </Text>
             </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.statusItem}>
-              <Text style={styles.statusValue}>
-                {metrics?.energy_score ?? 0}
-              </Text>
-              <Text style={styles.statusLabel}>
-                Vitality
-              </Text>
-            </View>
           </View>
 
           <View style={styles.riskBadge}>

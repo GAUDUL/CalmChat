@@ -23,7 +23,6 @@ export default function MoodScreen({
 }) {
   const screenWidth = Dimensions.get("window").width;
   const emotionScore = metrics?.emotion_score ?? "-";
-  const energyScore = metrics?.energy_score ?? "-";
   
   const riskLabelMap = {
     caution: "Caution",
@@ -79,22 +78,6 @@ export default function MoodScreen({
                   thickness={10}
                   showsText
                   formatText={() => String(emotionScore)}
-                  color={colors.primary}
-                  textStyle={styles.progressText}
-                />
-              </CalmCard>
-
-              <CalmCard style={styles.scoreCard}>
-                <Text style={styles.label}>
-                  Vitality Score
-                </Text>
-
-                <Progress.Circle
-                  progress={Number(energyScore) / 100}
-                  size={120}
-                  thickness={10}
-                  showsText
-                  formatText={() => String(energyScore)}
                   color={colors.primary}
                   textStyle={styles.progressText}
                 />

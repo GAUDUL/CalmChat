@@ -78,12 +78,10 @@ class ProfileUpdateResponse(BaseModel):
 class WeeklyTrendItem(BaseModel):
     date: str
     emotion_score: Optional[float] = None
-    energy_score: Optional[float] = None
 
 class MetricsResponse(BaseModel):
     user_id: int
     emotion_score: Optional[float] = None
-    energy_score: Optional[float] = None
     anomaly_detected: bool
     recommended_solution: Optional[str] = None
     risk_level: str = "normal"
