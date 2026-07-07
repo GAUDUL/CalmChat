@@ -53,6 +53,7 @@ backend/data/chroma/
 backend/data/chroma_db/
 backend/persist/
 backend/vectorstore/
+backend/uploads/
 
 backend/*.db
 backend/*.sqlite
@@ -79,6 +80,8 @@ frontend/.watchmanconfig
 # TTS
 # =========================================================
 tts-service/checkpoints_v2
+tts-service/processed/
+tts-service/__pycache__
 
 # =========================================================
 # ANDROID (React Native)

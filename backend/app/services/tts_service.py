@@ -9,16 +9,25 @@ import shutil
 import uuid
 
 VOICE_DIR = "uploads/family_voices"
-
+TTS_SERVICE_URL = os.getenv(
+    "TTS_SERVICE_URL",
+    "http://tts:8000"
+)
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George (무료 플랜)
 ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 
 class TTSService:
-    def synthesize(self, text: str, use_family_voice: bool = False, reference_audio_path: str = None) -> bytes:
-        if use_family_voice and reference_audio_path:
-            return self._synthesize_family_voice(text, reference_audio_path)
-        return self._synthesize_standard(text)
+    def synthesize(self, text: str, use_family_voice: bool = False, embedding_path: str = None) -> bytes:
+        if use_family_voice and embedding_path:
+            audio_bytes = self._synthesize_family_voice(
+                text,
+                embedding_path,
+            )
+            return audio_bytes, "audio/wav"
+        else:
+            audio_bytes = self._synthesize_standard(text)
+            return audio_bytes, "audio/mpeg"
 
     def _synthesize_standard(self, text: str) -> bytes:
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
@@ -39,12 +48,12 @@ class TTSService:
         response.raise_for_status()
         return response.content
 
-    def _synthesize_family_voice(self, text: str, sample_audio_path: str) -> bytes:
+    def _synthesize_family_voice(self, text: str, embedding_path: str) -> bytes:
         response = requests.post(
                 f"{TTS_SERVICE_URL}/synthesize",
                 json={
                     "text": text,
-                    "sample_audio_path": sample_audio_path,
+                    "embedding_path": embedding_path,
                 },
                 timeout=60,
             )

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-
+import traceback
 from openvoice_engine import engine
 
 app = FastAPI(title="CalmChat TTS Service (OpenVoice V2)")
@@ -21,7 +21,8 @@ def register_voice(payload: RegisterRequest):
     try:
         embedding_path = engine.extract_embedding(payload.sample_audio_path)
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f"임베딩 추출 실패: {e}")
+        traceback.print_exc()
+        raise
 
     return {"embedding_path": embedding_path}
 

@@ -360,10 +360,10 @@ def voice_chat(
             voice_embedding_path = family_voice.embedding_path if family_voice else None
 
         # TTS 수행
-        audio_bytes = tts_service.synthesize(
+        audio_bytes, audio_type = tts_service.synthesize(
             text=response_text,
             use_family_voice=user.family_voice_enabled,
-            voice_embedding_path=voice_embedding_path ,
+            embedding_path=voice_embedding_path,
         )
 
         return VoiceChatResponse(
@@ -372,7 +372,7 @@ def voice_chat(
             response_text=response_text,
             used_context=context,
             audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
-            audio_content_type="audio/mpeg",
+            audio_content_type=audio_type,
         )
     finally:
         if tmp_path and os.path.exists(tmp_path):

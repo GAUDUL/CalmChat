@@ -63,6 +63,7 @@ services:
       - TRANSFORMERS_VERBOSITY=error
       - HF_HUB_DISABLE_PROGRESS_BARS=1
     volumes:
+      - ./tts-service:/app  
       # backend가 ./backend:/app 로 마운트되므로,
       # 실제 family_voices 파일은 호스트의 ./backend/uploads/family_voices 에 생깁니다.
       # tts 컨테이너도 같은 호스트 경로를 같은 컨테이너 내부 경로로 마운트해야

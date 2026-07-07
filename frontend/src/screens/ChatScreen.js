@@ -119,6 +119,7 @@ export default function ChatScreen({ user, onRefreshMetrics, onRefreshRecentMess
 
     try {
       const filePath = await AudioRecord.stop();
+      console.log("audio path:", filePath);
 
       const result = await sendVoiceChat(user.id, filePath);
       setLastResponse(result.response_text);
