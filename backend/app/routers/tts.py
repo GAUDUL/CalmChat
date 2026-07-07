@@ -1,6 +1,7 @@
 import os
 import shutil
 import tempfile
+import requests
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
@@ -24,7 +25,7 @@ def text_to_speech(
 ):
     require_user_access(db, payload.user_id, x_device_key)
 
-    voice_id = None
+    reference_audio_path = None
 
     if payload.use_family_voice:
         family_voice = (
@@ -34,12 +35,12 @@ def text_to_speech(
         )
 
         if family_voice:
-            voice_id = family_voice.voice_id
+            reference_audio_path = family_voice.sample_audio_path
 
     audio_bytes = tts_service.synthesize(
         text=payload.text,
-        voice_model_id=voice_id,
-        use_family_voice=bool(voice_id),
+        reference_audio_path=reference_audio_path,
+        use_family_voice=bool(reference_audio_path),
     )
 
     return Response(content=audio_bytes, media_type="audio/mpeg")
@@ -67,24 +68,30 @@ def upload_family_voice(
         tmp_path = tmp.name
 
     try:
-        voice_id = tts_service.register_family_voice(tmp_path)
+        sample_audio_path, embedding_path = tts_service.register_family_voice(tmp_path)
 
         family_voice = db.query(FamilyVoice).filter(FamilyVoice.user_id == user_id).first()
 
+        # 이미 있으면 수정
         if family_voice:
             family_voice.family_member_name = family_member_name
-            family_voice.voice_id = voice_id
+            family_voice.sample_audio_path = sample_audio_path
+            family_voice.embedding_path = embedding_path
+        # 없었으면 생성
         else:
             family_voice = FamilyVoice(
                 user_id=user_id,
                 family_member_name=family_member_name,
-                voice_id=voice_id,
+                sample_audio_path=sample_audio_path,
+                embedding_path=embedding_path,
             )
             db.add(family_voice)
 
         db.commit()
 
         return {"message": "Family voice registered."}
+    except requests.HTTPError:
+        raise HTTPException(status_code=422, detail="음성 임베딩 추출에 실패했습니다. 다른 샘플로 시도해 주세요.")
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

@@ -62,7 +62,9 @@ export async function sendVoiceChat(userId, audioUri) {
   const formData = new FormData();
   formData.append("user_id", String(userId));
   formData.append("audio", {
-    uri: `file://${audioUri}`,
+    uri: audioUri.startsWith("file://")
+      ? audioUri
+      : `file://${audioUri}`,
     name: "recording.wav",
     type: "audio/wav",
   });

@@ -76,9 +76,9 @@ class FamilyVoice(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     family_member_name = Column(String(50))
-    voice_id = Column(String(100), nullable=True)
+    sample_audio_path = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
+    embedding_path = Column(String(255))
     user = relationship("User", back_populates="family_voices")
 
 
