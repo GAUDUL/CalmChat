@@ -5,6 +5,8 @@ OpenVoice V2 추론 엔진.
 import os
 import uuid
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import torch
 from melo.api import TTS
 from openvoice import se_extractor
