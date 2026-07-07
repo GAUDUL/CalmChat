@@ -225,6 +225,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     paddingTop: 8,
     paddingBottom: 10,
+    marginBottom: 45,
   },
   tabItem: { flex: 1, alignItems: "center", gap: 2 },
   tabIcon: { fontSize: 18, fontWeight: "800", opacity: 0.5 },
