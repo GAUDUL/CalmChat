@@ -38,10 +38,10 @@ export default function MoodScreen({
     if (!user?.id) {
       return;
     }
-
     onRefreshMetrics?.();
   }, [onRefreshMetrics, user?.id]);
 
+ 
   const showLoading = metricsLoading && !metrics;
 
   return (
@@ -188,59 +188,50 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
-
   label: {
     fontSize: 19,
     fontWeight: "600", 
     color: colors.mutedForeground,
   },
-
   loadingText: {
     marginTop: 12,
     fontSize: 16,
     color: colors.mutedForeground,
     textAlign: "center",
   },
-
   description: {
     fontSize: 18,
     color: colors.mutedForeground,
     lineHeight: 26,
   },
-
   alertTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: colors.accent,
     marginBottom: 8,
   },
-
   errorText: {
     fontSize: 17, 
     color: colors.mutedForeground,
   },
-
   scoreRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 14,
   },
-
   scoreCard: {
     flex: 1,
     alignItems: "center",
     gap: 16,
   },
-
   normalText: {
     fontSize: 20,
     fontWeight: "700",
     color: colors.foreground,
     marginTop: 6,
   },
-
   progressText: {
-  fontSize: 24,
-  fontWeight: "500",
+    fontSize: 24,
+    fontWeight: "500",
   },
 });
