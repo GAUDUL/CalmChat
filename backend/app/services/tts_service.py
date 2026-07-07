@@ -1,12 +1,14 @@
 """
 TTS 서비스.
-  - standard: 기본 합성 음성
-  - family_voice: 사전 등록된 가족 음성 샘플로 클로닝된 음성 사용 (사용자가 켜고 끌 수 있는 옵트인 기능)
-
-TODO: 실제 TTS 엔진 연동 (예: ElevenLabs, Coqui TTS, Azure/Naver Clova 등) - 모델 선정 논의 필요.
-지금은 인터페이스만 잡아두고, 엔진이 정해지면 _synthesize_* 메서드 내부만 교체하면 됨.
+  - standard: 기본 합성 음성 (ElevenLabs)
+  - family_voice: 사전 등록된 가족 음성 샘플로 클로닝된 음성 사용
 """
+import os
+import requests
 
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George (무료 플랜)
+ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 
 class TTSService:
     def synthesize(self, text: str, use_family_voice: bool = False, voice_model_id: str = None) -> bytes:
@@ -15,17 +17,62 @@ class TTSService:
         return self._synthesize_standard(text)
 
     def _synthesize_standard(self, text: str) -> bytes:
-        # TODO: 표준 TTS 엔진 호출
-        raise NotImplementedError("표준 TTS 엔진 연동 필요")
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+            "model_id": ELEVENLABS_MODEL_ID,
+            "voice_settings": {
+                "stability": 0.7,
+                "similarity_boost": 0.8,
+                "speed": 0.9
+            }
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.content
 
     def _synthesize_family_voice(self, text: str, voice_model_id: str) -> bytes:
-        # TODO: voice_model_id로 등록된 가족 목소리 클로닝 모델 호출
-        raise NotImplementedError("가족 음성 합성 엔진 연동 필요")
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_model_id}"
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": text,
+            "model_id": ELEVENLABS_MODEL_ID,
+            "voice_settings": {
+                "stability": 0.7,
+                "similarity_boost": 0.8,
+                "speed": 0.9
+            }
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.content
 
     def register_family_voice(self, sample_audio_path: str) -> str:
-        """가족 목소리 샘플 업로드 -> voice_model_id 발급 (클로닝 서비스 연동 자리)."""
-        # TODO: 클로닝 서비스에 업로드 후 model_id 반환
-        raise NotImplementedError("가족 목소리 등록 로직 구현 필요")
+        """가족 목소리 샘플 업로드 -> voice_model_id 발급"""
+        url = "https://api.elevenlabs.io/v1/voices/add"
+        headers = {"xi-api-key": ELEVENLABS_API_KEY}
+        with open(sample_audio_path, "rb") as f:
+            files = {"files": f}
+            data = {"name": "family_voice"}
+            response = requests.post(url, headers=headers, files=files, data=data)
+            response = requests.post(
+                url,
+                headers=headers,
+                files=files,
+                data=data,
+            )
 
+            print(response.status_code)
+            print(response.text)
+
+            response.raise_for_status()
+        return response.json()["voice_id"]
 
 tts_service = TTSService()

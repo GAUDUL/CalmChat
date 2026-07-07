@@ -1,86 +1,146 @@
-"""
-LLM 추상화 레이어.
-팀에서 Claude / GPT-4o / Gemini / 로컬 모델 중 무엇을 쓸지 결정되지 않았으므로,
-.env의 LLM_PROVIDER 값만 바꾸면 router/service 코드를 건드리지 않고 교체 가능하도록 구성.
-"""
 from typing import List
+import logging
+
 from app.config import settings
 
+logger = logging.getLogger(__name__)
 
 class LLMService:
     def __init__(self):
         self.provider = settings.llm_provider
 
-    def generate_response(self, user_text: str, context: List[str], system_prompt: str = None) -> str:
-        system_prompt = system_prompt or self._default_system_prompt()
+    def generate_response(
+        self,
+        user_text: str,
+        context: List[str],
+        system_prompt: str = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        system_prompt = system_prompt or self.default_system_prompt()
         context_block = "\n".join(context) if context else ""
 
-        if self.provider == "anthropic":
-            return self._call_anthropic(system_prompt, context_block, user_text)
-        elif self.provider == "openai":
-            return self._call_openai(system_prompt, context_block, user_text)
-        elif self.provider == "gemini":
-            return self._call_gemini(system_prompt, context_block, user_text)
-        else:
-            return self._call_local(system_prompt, context_block, user_text)
+        try:
+            if self.provider == "anthropic":
+                return self._call_anthropic(system_prompt, context_block, user_text, timeout_seconds)
+            if self.provider == "openai":
+                return self._call_openai(system_prompt, context_block, user_text, timeout_seconds)
+            if self.provider == "gemini":
+                return self._call_gemini(system_prompt, context_block, user_text, timeout_seconds)
+            return self._call_local(system_prompt, context_block, user_text, timeout_seconds)
+        except Exception as exc:
+            logger.exception("llm_provider_error provider=%s error=%s", self.provider, exc)
+            return "I'm sorry, but the AI service is currently unavailable. Please try again later."
 
-    def _default_system_prompt(self) -> str:
+    def confirm_danger_signal(self, user_text: str, matched_keywords: list[str]) -> bool | None:
+        prompt = (
+            "Classify whether this elderly user's message indicates an immediate health "
+            "or self-harm danger that should trigger emergency-level intervention. "
+            "Answer with only YES or NO.\n\n"
+            f"Matched keywords: {', '.join(matched_keywords)}\n"
+            f"Message: {user_text}"
+        )
+        try:
+            response = self.generate_response(
+                user_text=prompt,
+                context=[],
+                system_prompt=(
+                    "You are a strict safety triage classifier. "
+                    "Return only YES for immediate danger, otherwise NO."
+                ),
+                timeout_seconds=settings.danger_confirmation_timeout_seconds,
+            )
+        except Exception as exc:
+            print(f"[Danger Confirmation Error] {exc}")
+            return None
+
+        normalized = response.strip().lower()
+        if normalized.startswith("yes"):
+            return True
+        if normalized.startswith("no"):
+            return False
+        return None
+
+    def default_system_prompt(self) -> str:
         return (
-            "당신은 노인 사용자의 정서적 동반자 역할을 하는 친근한 AI입니다. "
-            "쉽고 짧은 문장을 사용하고, 사용자의 감정을 먼저 살피며 따뜻하게 응답하세요."
+            "You are a friendly AI companion who offers emotional support to elderly users. "
+            "The user may speak Korean or a Korean dialect, but you must always respond in English. "
+            "Use simple, short, gentle sentences that are easy to understand. "
+            "Acknowledge the user's feelings warmly. "
+            "When appropriate, refer to the user's message and ask one gentle, open-ended question to keep the conversation going. "
+            "Avoid repetitive phrases and avoid unnecessary questions in urgent situations."
         )
 
-    def _call_anthropic(self, system_prompt, context_block, user_text) -> str:
+    def _call_anthropic(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+        client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key,
+            timeout=timeout_seconds,
+        )
         message = client.messages.create(
             model=settings.anthropic_model,
             max_tokens=500,
-            system=f"{system_prompt}\n\n[사용자 프로파일 컨텍스트]\n{context_block}",
+            system=f"{system_prompt}\n\n[User profile context]\n{context_block}",
             messages=[{"role": "user", "content": user_text}],
         )
         return message.content[0].text
 
-    def _call_openai(self, system_prompt, context_block, user_text) -> str:
+    def _call_openai(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         from openai import OpenAI
-        client = OpenAI(api_key=settings.openai_api_key)
+
+        client = OpenAI(
+            api_key=settings.openai_api_key,
+            timeout=timeout_seconds,
+        )
         completion = client.chat.completions.create(
             model=settings.openai_model,
             messages=[
-                {"role": "system", "content": f"{system_prompt}\n\n[사용자 프로파일 컨텍스트]\n{context_block}"},
+                {"role": "system", "content": f"{system_prompt}\n\n[User profile context]\n{context_block}"},
                 {"role": "user", "content": user_text},
             ],
         )
         return completion.choices[0].message.content
 
-    # 현재는 gemini 사용
-    def _call_gemini(self, system_prompt, context_block, user_text) -> str:
+    def _call_gemini(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         from google import genai
 
-        client = genai.Client(
-            api_key=settings.gemini_api_key
+        client = genai.Client(api_key=settings.gemini_api_key)
+        prompt = (
+            f"{system_prompt}\n\n"
+            f"[User profile context]\n{context_block}\n\n"
+            f"User:\n{user_text}"
         )
-        prompt = f"""
-
-    {system_prompt}
-
-    [사용자 프로파일 컨텍스트]
-    {context_block}
-
-    사용자:
-    {user_text}
-    """
-
+        kwargs = {}
+        if timeout_seconds is not None:
+            kwargs["request_options"] = {"timeout": int(timeout_seconds * 1000)}
         response = client.models.generate_content(
             model=settings.gemini_model,
-            contents=prompt
+            contents=prompt,
+            **kwargs,
         )
-
         return response.text
 
-    def _call_local(self, system_prompt, context_block, user_text) -> str:
-        # TODO: 로컬 모델(llama.cpp, vLLM 등) 연동
-        raise NotImplementedError("로컬 모델 provider 미구현")
+    def _call_local(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
+        raise NotImplementedError("Local model provider is not implemented.")
+    
+    def correct_transcript(self, text: str) -> str:
+        try:
+            corrected = self.generate_response(
+                user_text=f"Transcript:\n{text}",
+                context=[],
+                system_prompt=(
+                    "You correct speech-to-text transcription errors. "
+                    "Fix only obvious recognition mistakes. "
+                    "Do not add information or change the meaning. "
+                    "If unsure, return the original text exactly. "
+                    "Return only the corrected transcript."
+                ),
+            ).strip()
+
+            return corrected or text
+
+        except Exception:
+            return text
 
 
 llm_service = LLMService()

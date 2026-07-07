@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect, text
 
+from app.config import settings
 from app.database import Base, engine
-from app.routers import stt, chat, tts, profile, metrics
+from app.routers import chat, metrics, profile, stt, tts, users, home
 
 Base.metadata.create_all(bind=engine)
 
@@ -10,7 +12,8 @@ app = FastAPI(title="Elderly Companion AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: 운영 환경에서는 React Native 앱 도메인으로 제한
+    # Set CORS_ALLOW_ORIGINS to a comma-separated allowlist in production.
+    allow_origins=settings.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -20,8 +23,10 @@ app.include_router(chat.router)
 app.include_router(tts.router)
 app.include_router(profile.router)
 app.include_router(metrics.router)
+app.include_router(users.router)
+app.include_router(home.router)
 
 
 @app.get("/health")
-async def health_check():
+def health_check():
     return {"status": "ok"}

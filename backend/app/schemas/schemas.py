@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, Field
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 
 
@@ -18,6 +18,49 @@ class ChatResponse(BaseModel):
     used_context: Optional[List[str]] = None
 
 
+class VoiceChatResponse(ChatResponse):
+    text: str
+    confidence: Optional[float] = None
+    audio_base64: Optional[str] = None
+    audio_content_type: str = "audio/mpeg"
+
+
+class ConversationResponse(BaseModel):
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DeviceUserRequest(BaseModel):
+    device_key: str
+    name: str = "CalmChat User"
+
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    device_key: Optional[str] = None
+    phone: Optional[str] = None
+    region_dialect: Optional[str] = None
+    family_voice_enabled: bool = False
+    onboarding_completed: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserPreferenceUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    region_dialect: Optional[str] = None
+    family_voice_enabled: Optional[bool] = None
+
+
 class TTSRequest(BaseModel):
     text: str
     user_id: int
@@ -32,6 +75,10 @@ class ProfileUpdateResponse(BaseModel):
     status: str
     updated_at: datetime
 
+class WeeklyTrendItem(BaseModel):
+    date: str
+    emotion_score: Optional[float] = None
+    energy_score: Optional[float] = None
 
 class MetricsResponse(BaseModel):
     user_id: int
@@ -39,8 +86,18 @@ class MetricsResponse(BaseModel):
     energy_score: Optional[float] = None
     anomaly_detected: bool
     recommended_solution: Optional[str] = None
-
+    risk_level: str = "normal"
+    anomaly_types: List[str] = Field(default_factory=list)
+    feedback_actions: List[str] = Field(default_factory=list)
+    signals: List[Dict[str, Any]] = Field(default_factory=list)
+    decision_log: List[Dict[str, Any]] = Field(default_factory=list)
+    weekly_trend: List[WeeklyTrendItem] = Field(default_factory=list)
 
 class FamilyVoiceRegisterRequest(BaseModel):
     user_id: int
     family_member_name: str
+
+
+class FamilyVoiceEnabledRequest(BaseModel):
+    user_id: int
+    enabled: bool    
