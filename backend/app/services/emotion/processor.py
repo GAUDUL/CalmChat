@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 engine = EmotionEngine()
 state_service = EmotionStateService()
 
+# engine.py의 CRISIS_EMOTION_PENALTY(-8)를 정확히 상쇄하기 위한 값.
+# 두 상수가 어긋나면 override 로직이 오작동하므로 값을 바꿀 땐 engine.py와 함께 맞출 것.
+CRISIS_OVERRIDE_COMPENSATION = 8
+
 
 def process_message(
     db,
@@ -30,23 +34,20 @@ def process_message(
         else crisis_keyword_flag_override
     )
 
-    # NOTE: the old delta-based design nudged the score when a crisis flag was
-    # raised but later overridden to false by the LLM confirmation step. In the
-    # model-based design, emotion_score comes straight from the emotion model
-    # and is intentionally independent of the crisis/health keyword signals,
-    # so no compensation is needed here anymore.
-    emotion_score = signal["emotion_score"]
+    emotion_delta = signal["emotion_delta"]
+
+    # engine.py는 crisis_keyword_flag가 True일 때 emotion_delta에 -8을 이미
+    # 반영해뒀다. 이후 LLM 확인으로 crisis가 False로 뒤집히면(override), 그
+    # -8을 정확히 상쇄해야 "crisis 아님"으로 확정된 경우와 점수가 맞아떨어진다.
+    if signal["crisis_keyword_flag"] and crisis_keyword_flag_override is False:
+        emotion_delta += CRISIS_OVERRIDE_COMPENSATION
 
     logger.info(
         "emotion_extraction=%s",
         json.dumps(
             {
                 "user_id": user_id,
-                "emotion_score": emotion_score,
-                "dominant": signal.get("dominant"),
-                "intensity": signal.get("intensity"),
-                "positive_score": signal.get("positive_score"),
-                "negative_score": signal.get("negative_score"),
+                "emotion_delta": emotion_delta,
                 "health_keyword_flag": health_keyword_flag,
                 "crisis_keyword_flag": crisis_keyword_flag,
                 "raw_health_keyword_flag": signal["health_keyword_flag"],
@@ -63,7 +64,7 @@ def process_message(
     return state_service.update(
         db=db,
         user_id=user_id,
-        emotion_score=emotion_score,
+        emotion_delta=emotion_delta,
         health_keyword_flag=health_keyword_flag,
         crisis_keyword_flag=crisis_keyword_flag,
     )

@@ -30,9 +30,6 @@ CRISIS_CONTEXT_SUPPRESS_RULES = {
     "not about me",
 }
 
-# Health/emergency physical-symptom language, kept separate from crisis
-# (self-harm) keywords so the two safety signals can be tracked and
-# confirmed independently in chat.py / engine.py.
 HEALTH_KEYWORD_RULES = {
     "chest pain",
     "short of breath",
@@ -48,6 +45,16 @@ HEALTH_KEYWORD_RULES = {
     "의식을 잃",
 }
 
+HEALTH_CONTEXT_SUPPRESS_RULES = {
+    "뉴스에서",
+    "드라마에서",
+    "영화에서",
+    "소설에서",
+    "친구가 말했",
+    "not me",
+    "not about me",
+}
+
 KOTE_LABELS = [
     "불평/불만", "환영/호의", "감동/감탄", "지긋지긋", "고마움",
     "슬픔", "화남/분노", "존경", "기대감", "우쭐댐/무시함",
@@ -60,6 +67,8 @@ KOTE_LABELS = [
     "행복", "불안/걱정", "기쁨", "안심/신뢰",
 ]
 
+# TODO: ?? 이 부분 역할이..?
+# 필요 없다면 삭제, 필요하다면 살리기
 def _load_keyword_overrides() -> dict:
     rules_path = Path(__file__).with_name("keyword_rules.json")
     if not rules_path.exists():
@@ -76,6 +85,7 @@ def _apply_keyword_overrides() -> None:
     CRISIS_KEYWORD_RULES.update(overrides.get("crisis_keywords", []))
     CRISIS_CONTEXT_SUPPRESS_RULES.update(overrides.get("crisis_suppressors", []))
     HEALTH_KEYWORD_RULES.update(overrides.get("health_keywords", []))
+    HEALTH_CONTEXT_SUPPRESS_RULES.update(overrides.get("health_suppressors", []))
 
 
 _apply_keyword_overrides()

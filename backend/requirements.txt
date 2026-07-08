@@ -13,5 +13,7 @@ google-genai==2.9.0
 chromadb==0.5.5
 numpy==1.26.4
 
-openai-whisper==20250625torch==2.12.1
-transformers==5.13.0
+openai-whisper==20250625
+torch==2.5.1
+transformers==4.46.3
+

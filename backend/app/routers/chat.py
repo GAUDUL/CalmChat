@@ -195,8 +195,13 @@ def generate_chat_response(user_id: int, text: str, db: Session):
     anomaly_result = anomaly_service.detect(db, user_id)
 
     # TODO: 여기 부분 수정
+    # 모델 사용으로 인해 extract 가 오래 걸릴 경우도 고려해보기
+    # ex) scoring도 병렬로 처리? user 상태에 따른 추가 피드백 제공은 현재 상태 기반으로? => 검증 필요
     current_signal = emotion_engine.extract(text)
     current_guidance = current_safety_guidance(text, current_signal)
+
+    print("current_signal: ", current_signal)
+    print("current_guidance: ", current_guidance)
 
     merged_risk_level = higher_risk(
         anomaly_result.get("risk_level", "normal"),

@@ -140,9 +140,11 @@ class KoteClassifier:
         guilt_result = None
 
         top2_clusters = sorted(cluster_probs, key=cluster_probs.get, reverse=True)[:2]
+        
         if GUILT_REGRET_CLUSTER in top2_clusters:
             # 자기지향_부정이 후보로 뜬 경우에만 Gemini 호출 (매 메시지 호출 방지, 비용/지연 통제)
             guilt_checked = True
+            # True/False
             guilt_result = llm_service.confirm_guilt_or_regret_signal(text)
 
             if guilt_result is True:

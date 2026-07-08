@@ -128,14 +128,7 @@ class SafetyKeywordDetector:
                 "crisis": crisis_confidence,
                 "health": health_confidence,
             },
-            # phrase/emotion_*/energy_* 매칭은 KOTE로 대체되어 더 이상 여기서 채워지지 않음
-            # (감정/에너지 스코어링과 무관한 안전 트리거 레이어이므로 shape만 기존과 동일하게 유지)
             "matched_keywords": {
-                "phrase": [],
-                "emotion_negative": [],
-                "emotion_positive": [],
-                "energy_negative": [],
-                "energy_positive": [],
                 "health": health_matches,
                 "crisis": crisis_matches,
                 "suppressed_health": health_suppressors,
