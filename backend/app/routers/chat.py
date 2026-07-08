@@ -26,11 +26,14 @@ CHAT_HISTORY_LIMIT = 80
 # risk_level이 "올라가는 전이"는 이 쿨다운과 무관하게 항상 즉시 전달
 INTERVENTION_COOLDOWN = timedelta(minutes=180)
 
-
 def higher_risk(left: str, right: str) -> str:
     return left if RISK_ORDER.get(left, 0) >= RISK_ORDER.get(right, 0) else right
 
-
+#TODO
+# current_signal is produced by EmotionEngine.extract(), which now returns both
+# the model-based emotion scoring fields AND these rule-based safety fields
+# (matched_keywords / danger_confidence_by_signal), so no shape conversion is
+# needed here anymore.
 def _signal_confirmation(text: str, current_signal: dict, signal_kind: str) -> bool:
     matched_keywords = current_signal.get("matched_keywords", {}).get(signal_kind, [])
     if not matched_keywords:
@@ -47,8 +50,8 @@ def _signal_confirmation(text: str, current_signal: dict, signal_kind: str) -> b
 
     return llm_service.confirm_danger_signal(text, matched_keywords) is True
 
-
 def current_safety_guidance(text: str, current_signal: dict) -> dict:
+
     if not (current_signal["crisis_keyword_flag"] or current_signal["health_keyword_flag"]):
         return {
             "risk_level": "normal",
@@ -70,6 +73,7 @@ def current_safety_guidance(text: str, current_signal: dict) -> dict:
 
     risk_level = "danger" if crisis_confirmed or health_confirmed else "warning"
     actions = []
+    
     if crisis_confirmed:
         actions.append("Encourage immediate caregiver or emergency support contact.")
     elif current_signal["crisis_keyword_flag"]:
@@ -134,7 +138,7 @@ def _update_intervention_state(state: CareInterventionState, risk_level: str, de
         state.last_intervention_risk_level = risk_level
         state.last_intervention_at = datetime.now(timezone.utc)
 
-
+# 상태에 따른 프롬프트 추가 제공
 def build_anomaly_system_prompt(anomaly_result: dict, deliver_intervention: bool) -> str | None:
     risk_level = anomaly_result.get("risk_level", "normal")
     if risk_level == "normal":
@@ -142,12 +146,12 @@ def build_anomaly_system_prompt(anomaly_result: dict, deliver_intervention: bool
 
     guidance_by_level = {
         "caution": (
-            "The user's recent mood or energy has shown a mild decline. "
+            "The user's recent mood has shown a mild decline. "
             "Naturally suggest one gentle activity, such as a short walk, sunlight, "
             "or recalling a pleasant memory. Do not mention scores or anomaly detection."
         ),
         "warning": (
-            "The user's recent mood or energy has shown a noticeable decline. "
+            "The user's recent mood has shown a noticeable decline. "
             "Lead with empathy, then proactively suggest one supportive action such as "
             "listening to familiar music, taking a small rest, or contacting family. "
             "Do not sound alarming, and do not mention scores or anomaly detection."
@@ -183,14 +187,22 @@ def build_anomaly_system_prompt(anomaly_result: dict, deliver_intervention: bool
         f"{action_block}"
     )
 
-
+# llm 대화 생성
 def generate_chat_response(user_id: int, text: str, db: Session):
     context = rag_service.get_relevant_context(db, user_id, text)
     packed_context = "\n\n".join(context)
 
     anomaly_result = anomaly_service.detect(db, user_id)
+
+    # TODO: 여기 부분 수정
+    # 모델 사용으로 인해 extract 가 오래 걸릴 경우도 고려해보기
+    # ex) scoring도 병렬로 처리? user 상태에 따른 추가 피드백 제공은 현재 상태 기반으로? => 검증 필요
     current_signal = emotion_engine.extract(text)
     current_guidance = current_safety_guidance(text, current_signal)
+
+    print("current_signal: ", current_signal)
+    print("current_guidance: ", current_guidance)
+
     merged_risk_level = higher_risk(
         anomaly_result.get("risk_level", "normal"),
         current_guidance["risk_level"],

@@ -103,6 +103,7 @@ class LLMService:
 
     def _call_gemini(self, system_prompt, context_block, user_text, timeout_seconds: float | None = None) -> str:
         from google import genai
+        from google.genai import types
 
         client = genai.Client(api_key=settings.gemini_api_key)
         prompt = (
@@ -110,13 +111,15 @@ class LLMService:
             f"[User profile context]\n{context_block}\n\n"
             f"User:\n{user_text}"
         )
-        kwargs = {}
+        config = None
         if timeout_seconds is not None:
-            kwargs["request_options"] = {"timeout": int(timeout_seconds * 1000)}
+            config = types.GenerateContentConfig(
+                http_options=types.HttpOptions(timeout=int(timeout_seconds * 1000))
+            )
         response = client.models.generate_content(
             model=settings.gemini_model,
             contents=prompt,
-            **kwargs,
+            config=config,
         )
         return response.text
 
@@ -142,5 +145,40 @@ class LLMService:
         except Exception:
             return text
 
+
+
+    def confirm_guilt_or_regret_signal(self, user_text: str) -> bool | None:
+        """
+        [lift 분석 근거] KOTE의 '죄책감' 라벨은 base-rate 대비 lift < 1로 신뢰 불가.
+        자기지향_부정 클러스터가 top-2 후보로 뜬 경우에만 이 함수로 보조 확인한다.
+        """
+        prompt = (
+            "Classify whether this elderly Korean user's message expresses guilt "
+            "or regret (self-blame about something they did or failed to do), "
+            "as opposed to shame, inferiority, or general sadness. "
+            "Answer with only YES or NO.\n\n"
+            f"Message: {user_text}"
+        )
+        try:
+            response = self.generate_response(
+                user_text=prompt,
+                context=[],
+                system_prompt=(
+                    "You are a strict emotion classifier specialized in distinguishing "
+                    "guilt/regret from other negative self-directed emotions. "
+                    "Return only YES or NO."
+                ),
+                timeout_seconds=settings.danger_confirmation_timeout_seconds,
+            )
+        except Exception as exc:
+            print(f"[Guilt/Regret Confirmation Error] {exc}")
+            return None
+
+        normalized = response.strip().lower()
+        if normalized.startswith("yes"):
+            return True
+        if normalized.startswith("no"):
+            return False
+        return None
 
 llm_service = LLMService()

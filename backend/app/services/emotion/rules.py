@@ -1,127 +1,6 @@
 import json
 from pathlib import Path
 
-
-EMOTION_RULES = {
-    "negative": {
-        "sad": -2,
-        "depressed": -2.5,
-        "down": -1.5,
-        "anxious": -2,
-        "stressed": -2,
-        "overwhelmed": -2.5,
-        "lonely": -2,
-        "frustrated": -1.5,
-        "tired of": -2,
-        "슬퍼": -2,
-        "우울": -2.5,
-        "불안": -2,
-        "걱정": -1.5,
-        "답답": -1.5,
-        "짜증": -1.5,
-        "외로": -2,
-        "재미없": -2.5,
-        "재미가 없": -2.5,
-        "흥미가 없": -2.5,
-        "의욕이 없": -2,
-        "아무것도 하기 싫": -2.5,
-        "무기력": -2.5,
-        "쓸모없": -2.5,
-        "희망이 없": -2.5,
-    },
-    "positive": {
-        "happy": 2,
-        "good": 1,
-        "great": 2,
-        "relaxed": 1.5,
-        "calm": 1.5,
-        "better": 1.5,
-        "excited": 2,
-        "행복": 2,
-        "좋아": 1,
-        "좋다": 1,
-        "괜찮": 1,
-        "편안": 1.5,
-        "차분": 1.5,
-        "나아졌": 1.5,
-        "즐거": 2,
-        "기쁘": 2,
-        "고마": 1,
-    },
-}
-
-ENERGY_RULES = {
-    "negative": {
-        "tired": -2,
-        "exhausted": -2.5,
-        "fatigued": -2,
-        "sleepy": -1.5,
-        "no energy": -2.5,
-        "pain": -2,
-        "headache": -1.5,
-        "back pain": -1.5,
-        "burned out": -2.5,
-        "피곤": -2,
-        "지쳤": -2,
-        "지침": -2,
-        "기운이 없": -2.5,
-        "기운이 하나도 없": -3,
-        "기운 하나도 없": -3,
-        "힘이 없": -2.5,
-        "힘들": -2,
-        "졸려": -1.5,
-        "몸이 무거": -1.5,
-        "아파": -2,
-        "아프": -2,
-        "두통": -1.5,
-        "허리": -1.5,
-        "무릎": -1.5,
-        "몸살": -2,
-    },
-    "positive": {
-        "energetic": 2,
-        "active": 1.5,
-        "worked out": 2,
-        "went for a walk": 1.5,
-        "feeling strong": 1.5,
-        "기운 나": 2,
-        "운동": 2,
-        "산책": 1.5,
-        "걸었": 1.5,
-        "힘이 나": 1.5,
-    },
-}
-
-PHRASE_RULES = [
-    ("not myself", -2),
-    ("feeling off", -1.5),
-    ("getting worse", -2),
-    ("getting better", 1.5),
-    ("i'm fine", 0.5),
-    ("내가 내가 아닌 것 같아", -2),
-    ("몸이 이상", -1.5),
-    ("컨디션이 안 좋아", -1.5),
-    ("점점 나빠", -2),
-    ("조금 나아", 1.5),
-    ("괜찮아졌", 1.5),
-    ("사는 게 재미없", -2.5),
-    ("하루가 의미 없", -2.5),
-    ("밖에 나가기 싫", -1.5),
-    ("사람 만나기 싫", -1.5),
-    ("잠을 못 잤", -1.5),
-]
-
-NEGATION_TERMS = {
-    "안",
-    "못",
-    "아니",
-    "않",
-    "없",
-    "no",
-    "not",
-    "never",
-}
-
 CRISIS_KEYWORD_RULES = {
     # Treat suicide/self-harm language as a separate safety signal.
     "suicide",
@@ -155,55 +34,41 @@ HEALTH_KEYWORD_RULES = {
     "chest pain",
     "short of breath",
     "hard to breathe",
-    "dizzy",
-    "fainted",
-    "fell down",
-    "blood pressure",
-    "diabetes",
-    "fever",
-    "vomit",
-    "diarrhea",
-    "hospital",
-    "medicine",
-    "가슴 통증",
-    "가슴이 아",
-    "숨이 차",
-    "숨쉬기 힘",
-    "호흡 곤란",
-    "어지러",
-    "기절",
-    "쓰러졌",
-    "넘어졌",
-    "혈압",
-    "혈당",
-    "고열",
-    "구토",
-    "설사",
-    "응급",
+    "can't breathe",
     "119",
+    "가슴 통증",
+    "가슴이 아프",
+    "호흡 곤란",
+    "숨쉬기 힘",
+    "숨이 차",
+    "쓰러졌",
+    "의식을 잃",
 }
 
 HEALTH_CONTEXT_SUPPRESS_RULES = {
-    "아프지 않",
-    "아픈 건 아니",
-    "통증은 없",
-    "숨이 차지 않",
-    "괜찮아",
-    "괜찮아요",
-    "약 먹었",
     "뉴스에서",
     "드라마에서",
-    "친구가",
-    "not in pain",
-    "no pain",
-    "not dizzy",
-    "not short of breath",
-    "already went",
-    "saw a doctor",
-    "took medicine",
+    "영화에서",
+    "소설에서",
+    "친구가 말했",
+    "not me",
+    "not about me",
 }
 
+KOTE_LABELS = [
+    "불평/불만", "환영/호의", "감동/감탄", "지긋지긋", "고마움",
+    "슬픔", "화남/분노", "존경", "기대감", "우쭐댐/무시함",
+    "안타까움/실망", "비장함", "의심/불신", "뿌듯함", "편안/쾌적",
+    "신기함/관심", "아껴주는", "부끄러움", "공포/무서움", "절망",
+    "한심함", "역겨움/징그러움", "짜증", "어이없음", "없음",
+    "패배/자기혐오", "귀찮음", "힘듦/지침", "즐거움/신남", "깨달음",
+    "죄책감", "증오/혐오", "흐뭇함(귀여움/예쁨)", "당황/난처", "경악",
+    "부담/안_내킴", "서러움", "재미없음", "불쌍함/연민", "놀람",
+    "행복", "불안/걱정", "기쁨", "안심/신뢰",
+]
 
+# TODO: ?? 이 부분 역할이..?
+# 필요 없다면 삭제, 필요하다면 살리기
 def _load_keyword_overrides() -> dict:
     rules_path = Path(__file__).with_name("keyword_rules.json")
     if not rules_path.exists():
@@ -217,13 +82,9 @@ def _load_keyword_overrides() -> dict:
 
 def _apply_keyword_overrides() -> None:
     overrides = _load_keyword_overrides()
-    EMOTION_RULES["negative"].update(overrides.get("emotion_negative", {}))
-    EMOTION_RULES["positive"].update(overrides.get("emotion_positive", {}))
-    ENERGY_RULES["negative"].update(overrides.get("energy_negative", {}))
-    ENERGY_RULES["positive"].update(overrides.get("energy_positive", {}))
     CRISIS_KEYWORD_RULES.update(overrides.get("crisis_keywords", []))
-    HEALTH_KEYWORD_RULES.update(overrides.get("health_keywords", []))
     CRISIS_CONTEXT_SUPPRESS_RULES.update(overrides.get("crisis_suppressors", []))
+    HEALTH_KEYWORD_RULES.update(overrides.get("health_keywords", []))
     HEALTH_CONTEXT_SUPPRESS_RULES.update(overrides.get("health_suppressors", []))
 
 

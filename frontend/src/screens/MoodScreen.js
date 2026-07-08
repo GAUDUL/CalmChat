@@ -22,14 +22,38 @@ export default function MoodScreen({
   onRefreshMetrics,
 }) {
   const screenWidth = Dimensions.get("window").width;
-  const emotionScore = metrics?.emotion_score ?? "-";
-  const energyScore = metrics?.energy_score ?? "-";
+  const emotionScore = Math.round(metrics?.emotion_score ?? 0)
   
   const riskLabelMap = {
     caution: "Caution",
     warning: "Warning",
     danger: "Danger",
   };
+
+    const moodInfo = {
+      stable: {
+        emoji: "😊",
+        message: "You're doing well",
+      },
+      caution: {
+        emoji: "😮‍💨",
+        message: "Take a short break",
+      },
+      warning: {
+        emoji: "😟",
+        message: "Be kind to yourself",
+      },
+      danger: {
+        emoji: "🚨",
+        message: "Reach out if needed",
+      },
+    };
+
+  const currentStatus = metrics?.anomaly_detected
+  ? metrics?.risk_level
+  : "stable";
+
+  const mood = moodInfo[currentStatus] ?? moodInfo.stable;
 
   const riskLabel =
     riskLabelMap[metrics?.risk_level] ?? "Change Detected";
@@ -69,35 +93,35 @@ export default function MoodScreen({
           <>
             <View style={styles.scoreRow}>
               <CalmCard style={styles.scoreCard}>
-                <Text style={styles.label}>
-                  Emotional Score
-                </Text>
+                <View style={styles.scoreTop}>
+                  {/* 왼쪽 */}
+                  <View style={styles.scoreColumn}>
+                    <Text style={styles.label}>
+                      Emotional Score
+                    </Text>
 
-                <Progress.Circle
-                  progress={Number(emotionScore) / 100}
-                  size={120}
-                  thickness={10}
-                  showsText
-                  formatText={() => String(emotionScore)}
-                  color={colors.primary}
-                  textStyle={styles.progressText}
-                />
-              </CalmCard>
+                    <Progress.Circle
+                      progress={emotionScore / 100}
+                      size={120}
+                      thickness={10}
+                      showsText
+                      formatText={() => String(emotionScore)}
+                      color={colors.primary}
+                      textStyle={styles.progressText}
+                    />
+                  </View>
 
-              <CalmCard style={styles.scoreCard}>
-                <Text style={styles.label}>
-                  Vitality Score
-                </Text>
+                  {/* 오른쪽 */}
+                  <View style={styles.statusColumn}>
+                    <Text style={styles.statusEmoji}>
+                      {mood.emoji}
+                    </Text>
 
-                <Progress.Circle
-                  progress={Number(energyScore) / 100}
-                  size={120}
-                  thickness={10}
-                  showsText
-                  formatText={() => String(energyScore)}
-                  color={colors.primary}
-                  textStyle={styles.progressText}
-                />
+                    <Text style={styles.statusMessage}>
+                      {mood.message}
+                    </Text>
+                  </View>
+                </View>
               </CalmCard>
             </View>
             {metrics?.weekly_trend?.length > 0 && (
@@ -160,7 +184,8 @@ export default function MoodScreen({
                 </Text>
 
                 <Text style={styles.description}>
-                  No significant changes have been detected.
+                  Everything looks good today.{"\n"}
+                  Keep taking care of yourself.
                 </Text>
               </CalmCard>
             )}
@@ -234,4 +259,32 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "500",
   },
+scoreTop: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+},
+
+scoreColumn: {
+  flex: 1,
+  alignItems: "center",
+},
+
+statusColumn: {
+  width: 120,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+statusEmoji: {
+  fontSize: 42,
+},
+
+statusMessage: {
+  marginTop: 8,
+  fontSize: 14,
+  textAlign: "center",
+  color: colors.mutedForeground,
+  fontWeight: "600",
+},
 });

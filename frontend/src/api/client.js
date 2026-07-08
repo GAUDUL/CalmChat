@@ -71,7 +71,7 @@ export async function sendVoiceChat(userId, audioUri) {
 
   const { data } = await api.post("/chat/audio", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-    timeout: 90000,
+    timeout: 120000,
   });
   return data;
 }

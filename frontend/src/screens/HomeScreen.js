@@ -61,21 +61,10 @@ export default function HomeScreen({
           <View style={styles.statusRow}>
             <View style={styles.statusItem}>
               <Text style={styles.statusValue}>
-                {metrics?.emotion_score ?? 0}
+                {Math.round(metrics?.emotion_score ?? 0)}
               </Text>
               <Text style={styles.statusLabel}>
                 Emotion
-              </Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.statusItem}>
-              <Text style={styles.statusValue}>
-                {metrics?.energy_score ?? 0}
-              </Text>
-              <Text style={styles.statusLabel}>
-                Vitality
               </Text>
             </View>
           </View>

@@ -53,14 +53,13 @@ class ProfileDocument(Base):
 
 
 class MetricRecord(Base):
-    """Mood, energy, and safety signals extracted from conversations."""
+    """Mood, and safety signals extracted from conversations."""
 
     __tablename__ = "metric_records"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     emotion_score = Column(Float, nullable=True)
-    energy_score = Column(Float, nullable=True)
     sleep_keyword_flag = Column(Boolean, default=False)
     health_keyword_flag = Column(Boolean, default=False)
     # Crisis/self-harm language is a safety signal, not an ordinary mood keyword.

@@ -43,7 +43,7 @@ SOLUTION_MAP = {
         ],
     },
     "warning": {
-        "message": "A noticeable decline in emotional well-being or energy has been detected. Active check-ins are recommended.",
+        "message": "A noticeable decline in emotional well-being has been detected. Active check-ins are recommended.",
         "actions": [
             "Play a short check-in message using a family member's cloned voice.",
             "Recommend favorite music or calming activities that the user enjoys.",
@@ -80,6 +80,7 @@ class MetricSignal:
 
 
 class AnomalyService:
+    # EMA
     def _ema_latest_first(self, scores: np.ndarray) -> np.ndarray:
         if len(scores) == 0:
             return scores
@@ -90,7 +91,8 @@ class AnomalyService:
             smoothed.append((EMA_ALPHA * float(score)) + ((1 - EMA_ALPHA) * smoothed[-1]))
 
         return np.array(smoothed[::-1])
-
+    
+    # 감소 추세 확인
     def _is_declining_trend(self, scores: np.ndarray) -> bool:
         if len(scores) < 3:
             return False
@@ -98,6 +100,7 @@ class AnomalyService:
         latest, previous, before_previous = scores[:3]
         return bool(latest < previous < before_previous)
 
+    # Welford
     def _welford_std(self, scores: np.ndarray) -> float:
         if len(scores) < 2:
             return 0.0
@@ -112,7 +115,8 @@ class AnomalyService:
             m2 += delta * (float(score) - mean)
 
         return float(np.sqrt(m2 / (count - 1))) if count > 1 else 0.0
-
+    
+    # MAD
     def _mad_std(self, scores: np.ndarray) -> float:
         if len(scores) == 0:
             return 0.0
@@ -121,6 +125,7 @@ class AnomalyService:
         mad = float(np.median(np.abs(scores - median)))
         return mad * MAD_SCALE
 
+    # std 계산 (Welford, MAD)
     def _baseline_stats(self, scores: np.ndarray) -> dict:
         welford_std = self._welford_std(scores)
         mad_std = self._mad_std(scores)
@@ -134,6 +139,7 @@ class AnomalyService:
             "mad_std": mad_std,
         }
 
+    # risk_level 결정
     def _analyze_scores(self, name: str, scores: np.ndarray) -> MetricSignal | None:
         if len(scores) == 0:
             return None
@@ -225,10 +231,9 @@ class AnomalyService:
             if record.health_keyword_flag or record.crisis_keyword_flag:
                 break
             emotion = record.emotion_score
-            energy = record.energy_score
-            if emotion is None or energy is None:
+            if emotion is None:
                 break
-            if emotion >= LOW_SCORE_THRESHOLD and energy >= LOW_SCORE_THRESHOLD:
+            if emotion >= LOW_SCORE_THRESHOLD >= LOW_SCORE_THRESHOLD:
                 stable_count += 1
                 continue
             break
@@ -284,16 +289,11 @@ class AnomalyService:
 
     def _statistical_signals(self, records: list[MetricRecord]) -> list[MetricSignal]:
         emotion_scores = np.array([r.emotion_score for r in records if r.emotion_score is not None])
-        energy_scores = np.array([r.energy_score for r in records if r.energy_score is not None])
 
         signals = []
         emotion_signal = self._analyze_scores("emotion", emotion_scores)
         if emotion_signal:
             signals.append(emotion_signal)
-
-        energy_signal = self._analyze_scores("energy", energy_scores)
-        if energy_signal:
-            signals.append(energy_signal)
 
         return signals
 
@@ -317,6 +317,7 @@ class AnomalyService:
         logger.info("anomaly_decision=%s", json.dumps(result, ensure_ascii=False, default=str))
         return result
 
+    # return 
     def detect(self, db: Session, user_id: int, window: int = 14) -> dict:
         records = (
             db.query(MetricRecord)
@@ -343,6 +344,7 @@ class AnomalyService:
                 "recorded_hour": latest.recorded_at.hour,
                 "used_as": "auxiliary_only",
             })
+        
         if len(records) > 1 and latest.recorded_at and records[1].recorded_at:
             contact_gap_days = (latest.recorded_at - records[1].recorded_at).total_seconds() / 86400
             if contact_gap_days >= CONTACT_GAP_DAYS:
@@ -396,10 +398,6 @@ class AnomalyService:
                 absolute_signals.append(
                     self._absolute_threshold_signal("emotion", latest.emotion_score, len(records))
                 )
-            if latest.energy_score is not None and latest.energy_score < LOW_SCORE_THRESHOLD:
-                absolute_signals.append(
-                    self._absolute_threshold_signal("energy", latest.energy_score, len(records))
-                )
 
             if absolute_signals:
                 decision_log.append({
@@ -438,9 +436,10 @@ class AnomalyService:
             )
 
         # Priority 2 and 3: choose the single most severe score signal.
+        # TODO: signal 확인
         risk_level = max(signals, key=lambda signal: RISK_ORDER[signal.risk_level]).risk_level
         risk_level, signals = self._apply_hysteresis(risk_level, signals, records, decision_log)
-        anomaly_types = [f"low_{signal.name}" for signal in signals if signal.name in {"emotion", "energy"}]
+        anomaly_types = [f"low_{signal.name}" for signal in signals if signal.name in {"emotion"}]
         decision_log.append({
             "stage": "priority",
             "decision": risk_level,
