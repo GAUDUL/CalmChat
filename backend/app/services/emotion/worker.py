@@ -7,6 +7,7 @@ def run_emotion_pipeline(
     text: str,
     health_keyword_flag_override: bool | None = None,
     crisis_keyword_flag_override: bool | None = None,
+    precomputed_signal: dict | None = None,
 ):
     db = SessionLocal() 
     try:
@@ -16,6 +17,7 @@ def run_emotion_pipeline(
             text,
             health_keyword_flag_override=health_keyword_flag_override,
             crisis_keyword_flag_override=crisis_keyword_flag_override,
+            precomputed_signal=precomputed_signal,
         )
         db.commit()
     except Exception as e:

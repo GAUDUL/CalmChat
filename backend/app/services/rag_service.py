@@ -203,7 +203,7 @@ class RAGService:
         records = (
             db.query(Conversation)
             .filter(Conversation.user_id == user_id)
-            .order_by(Conversation.created_at.desc())
+            .order_by(Conversation.created_at.desc(), Conversation.id.desc())
             .limit(limit * 2) # 대화 쌍 구성할 수 있도록
             .all()
         )
@@ -214,16 +214,23 @@ class RAGService:
         i = 0
 
         while i < len(records):
-            if records[i].role == "user":
-                chunk = records[i:i+2]
-                formatted = "\n".join(
-                    f"[{r.role.upper()}] {r.content}"
-                    for r in chunk
-                )
-                pairs.append(formatted)
-                i += len(chunk)
-            else:
+            current = records[i]
+            if current.role != "user":
                 i += 1
+                continue
+
+            if i + 1 < len(records) and records[i + 1].role == "assistant":
+                chunk = [current, records[i + 1]]
+                i += 2
+            else:
+                chunk = [current]
+                i += 1
+
+            formatted = "\n".join(
+                f"[{r.role.upper()}] {r.content}"
+                for r in chunk
+            )
+            pairs.append(formatted)
 
         return pairs
 

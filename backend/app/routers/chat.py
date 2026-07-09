@@ -14,7 +14,7 @@ from app.schemas.schemas import ChatRequest, ChatResponse, ConversationResponse,
 from app.services.anomaly_service import RISK_ORDER, anomaly_service
 from app.services.emotion.processor import engine as emotion_engine
 from app.services.emotion.worker import run_emotion_pipeline
-from app.services.llm_service import llm_service
+from app.services.llm_service import LLMServiceError, SERVICE_UNAVAILABLE_MESSAGE, llm_service
 from app.services.rag_service import rag_service
 from app.services.stt_service import stt_service
 from app.services.tts_service import tts_service
@@ -228,11 +228,16 @@ def generate_chat_response(user_id: int, text: str, db: Session):
     deliver_intervention = _should_deliver_intervention(intervention_state, risk_level)
     system_prompt = build_anomaly_system_prompt(anomaly_result, deliver_intervention)
 
-    response_text = llm_service.generate_response(
-        user_text=text,
-        context=[packed_context],
-        system_prompt=system_prompt,
-    )
+    try:
+        response_text = llm_service.generate_response(
+            user_text=text,
+            context=[packed_context],
+            system_prompt=system_prompt,
+            raise_on_error=True,
+        )
+    except LLMServiceError as exc:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=SERVICE_UNAVAILABLE_MESSAGE) from exc
 
     user_message = Conversation(
         user_id=user_id,
@@ -274,6 +279,7 @@ def generate_chat_response(user_id: int, text: str, db: Session):
     return response_text, context, {
         "health_keyword_flag_override": current_guidance["health_keyword_flag_override"],
         "crisis_keyword_flag_override": current_guidance["crisis_keyword_flag_override"],
+        "precomputed_signal": current_signal,
     }
 
 
@@ -292,7 +298,7 @@ def get_chat_history(
     records = (
         db.query(Conversation)
         .filter(Conversation.user_id == user_id)
-        .order_by(Conversation.created_at.desc())
+        .order_by(Conversation.created_at.desc(), Conversation.id.desc())
         .limit(limit)
         .all()
     )
@@ -317,6 +323,7 @@ def chat(
         payload.text,
         safety_overrides["health_keyword_flag_override"],
         safety_overrides["crisis_keyword_flag_override"],
+        safety_overrides["precomputed_signal"],
     )
 
     return ChatResponse(response_text=response_text, used_context=context)
@@ -362,6 +369,7 @@ def voice_chat(
             corrected_text,
             safety_overrides["health_keyword_flag_override"],
             safety_overrides["crisis_keyword_flag_override"],
+            safety_overrides["precomputed_signal"],
         )
 
         voice_embedding_path  = None

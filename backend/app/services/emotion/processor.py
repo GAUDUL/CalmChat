@@ -20,8 +20,9 @@ def process_message(
     text: str,
     health_keyword_flag_override: bool | None = None,
     crisis_keyword_flag_override: bool | None = None,
+    precomputed_signal: dict | None = None,
 ):
-    signal = engine.extract(text)
+    signal = precomputed_signal if precomputed_signal is not None else engine.extract(text)
 
     health_keyword_flag = (
         signal["health_keyword_flag"]

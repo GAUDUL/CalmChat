@@ -5,6 +5,14 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+SERVICE_UNAVAILABLE_MESSAGE = "I'm sorry, but the AI service is currently unavailable. Please try again later."
+
+
+class LLMServiceError(RuntimeError):
+    pass
+
+
 class LLMService:
     def __init__(self):
         self.provider = settings.llm_provider
@@ -15,6 +23,7 @@ class LLMService:
         context: List[str],
         system_prompt: str = None,
         timeout_seconds: float | None = None,
+        raise_on_error: bool = False,
     ) -> str:
         system_prompt = system_prompt or self.default_system_prompt()
         context_block = "\n".join(context) if context else ""
@@ -29,7 +38,9 @@ class LLMService:
             return self._call_local(system_prompt, context_block, user_text, timeout_seconds)
         except Exception as exc:
             logger.exception("llm_provider_error provider=%s error=%s", self.provider, exc)
-            return "I'm sorry, but the AI service is currently unavailable. Please try again later."
+            if raise_on_error:
+                raise LLMServiceError("LLM provider is currently unavailable.") from exc
+            return SERVICE_UNAVAILABLE_MESSAGE
 
     def confirm_danger_signal(self, user_text: str, matched_keywords: list[str]) -> bool | None:
         prompt = (
@@ -48,6 +59,7 @@ class LLMService:
                     "Return only YES for immediate danger, otherwise NO."
                 ),
                 timeout_seconds=settings.danger_confirmation_timeout_seconds,
+                raise_on_error=True,
             )
         except Exception as exc:
             print(f"[Danger Confirmation Error] {exc}")
@@ -138,6 +150,7 @@ class LLMService:
                     "If unsure, return the original text exactly. "
                     "Return only the corrected transcript."
                 ),
+                raise_on_error=True,
             ).strip()
 
             return corrected or text
@@ -169,6 +182,7 @@ class LLMService:
                     "Return only YES or NO."
                 ),
                 timeout_seconds=settings.danger_confirmation_timeout_seconds,
+                raise_on_error=True,
             )
         except Exception as exc:
             print(f"[Guilt/Regret Confirmation Error] {exc}")
