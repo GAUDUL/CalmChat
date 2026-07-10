@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # STT
     whisper_model_size: str = "base"
-    whisper_finetuned_checkpoint: str = ""
+    whisper_finetuned_checkpoint: str = "/app/app/models/whisper-finetuned"
 
     # TTS
     elevenlabs_api_key: str = ""

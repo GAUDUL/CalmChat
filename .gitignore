@@ -57,6 +57,7 @@ backend/*.egg-info/
 backend/dist/
 backend/build/
 
+*.safetensors
 # =========================================================
 # DATABASE / VECTOR DB (Chroma / SQLite 등)
 # =========================================================
